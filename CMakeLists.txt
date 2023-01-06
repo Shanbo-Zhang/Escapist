@@ -3,4 +3,4 @@ project(Escapist)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(Escapist main.cpp)
+add_executable(Escapist main.cpp General.h Internal/ReferenceCount.h Internal/TypeTrait.h)

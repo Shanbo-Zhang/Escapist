@@ -1,6 +1,6 @@
 #include <iostream>
 
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+    std::cout << std::is_arithmetic<std::string>::value << std::endl;
     return 0;
 }

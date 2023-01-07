@@ -153,7 +153,8 @@ class ArrayList {
                 }
                 return data_ + oldSize;
             } else {
-                new(this)ArrayList<T>(growthSize, ArrayList<T>::CalcCapacity(size_));
+                /** @bug 2nd parameters: ArrayList<T>::CalcCapacity(size_), size = 0 actually. */
+                new(this)ArrayList<T>(growthSize, ArrayList<T>::CalcCapacity(growthSize));
                 return data_;
             }
         }

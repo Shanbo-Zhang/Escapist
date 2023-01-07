@@ -9,5 +9,7 @@ std::cout << arr.GetConstAt(index)<< ' ';                 \
 std::cout << std::endl;
 
 int main() {
-    std::cout<<std::is_nothrow_copy_constructible<int>::value;
+    ArrayList<int> arr;
+    arr.Append(123, 3)
+            .Append(456, 3);
 }

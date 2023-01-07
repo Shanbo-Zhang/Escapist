@@ -1,6 +1,6 @@
 #include <iostream>
+#include "Common/ArrayList.h"
 
 int main() {
-    std::cout << std::is_arithmetic<std::string>::value << std::endl;
-    return 0;
+    ArrayList<int> arr(100,5);
 }

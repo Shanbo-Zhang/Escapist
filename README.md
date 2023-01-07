@@ -1,21 +1,21 @@
 # Escapist
 ## Targets / Goals:
-Cross-platfrom,
-Support both GUI and Console,
-Comprehensive Framework
+* Cross-platfrom,
+* Support both GUI and Console,
+* Comprehensive Framework
 
 ## Support Features:
-ArrayList<T>
+* ArrayList<T>
 
 ## Plan:
-BasicString<T>,
-ByteArray,
-HashMap<Key, Value>
-Json(s)
-LinkedList<T>
-DoubleLinkedList<T>
-Socket, ServerSocket,
-Thread
+* BasicString<T>,
+* ByteArray,
+* HashMap<Key, Value>
+* Json(s)
+* LinkedList<T>
+* DoubleLinkedList<T>
+* Socket, ServerSocket,
+* Thread
 
 ## Development Log
 ### January 6th 2023:

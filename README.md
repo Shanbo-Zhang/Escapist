@@ -23,4 +23,6 @@ Because I linked the old repository to the wrong directory, I have to copy and u
   
 Finish: Constructor, destructor of ArrayList<T>
   
-Interesting Bug: I forgot to multiply sizeof(T) at the end of ArrayList<T>::TotalCapacpty.
+Interesting Bug:
+* I forgot to multiply sizeof(T) at the end of `ArrayList<T>::TotalCapacpty`.
+* In `ArrayList<T>::GetAt` and `ArrayList<T>::GetConstAt`, I typed to data_[size_]. Ironically, I made this mistake at that time, too. And I spent 2 hours working out that.

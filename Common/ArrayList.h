@@ -19,7 +19,10 @@
  */
 template<typename T>
 class ArrayList {
+    static_assert(std::is_trivially_copy_constructible<T>::value, "T must be copy constructible!");
+
     using ReferenceCount = EscapistPrivate::ReferenceCount;
+    using TypeTrait = typename EscapistPrivate::TypeTraitPatternSelector<T>::TypeTrait;
 
     /**
      * Head of data body. Composition:\n
@@ -115,6 +118,7 @@ class ArrayList {
         assert(buf_ = (ReferenceCount **) ::realloc(buf_, ArrayList<T>::TotalCapacity(capacity_)));
         if (oldBuf != buf_) { // If buffer changed its address, the data pointer still points to old reference count.
             data_ = (T *) (buf_ + 1);
+            *buf_ = oldRef;
         }
     }
 
@@ -133,7 +137,7 @@ class ArrayList {
                     (**buf_).DecrementRef();
                     capacity_ = ArrayList<T>::CalcCapacity(size_);
                     ArrayList<T>::SimpleAllocate(nullptr);
-                    TypeTrait<T>::Copy(data_, oldData, oldSize); // Copy from old data finally.
+                    TypeTrait::Copy(data_, oldData, oldSize); // Copy from old data finally.
                     // Now, current objects is irrelevant to old shared memory.
                 } else {
                     // directly operate in buffer
@@ -162,17 +166,16 @@ class ArrayList {
                     (**buf_).DecrementRef();
                     capacity_ = ArrayList<T>::CalcCapacity(size_);
                     ArrayList<T>::SimpleAllocate(nullptr);
-                    TypeTrait<T>::Copy(data_ + growthSize, oldData, oldSize); // Copy from old data finally.
+                    TypeTrait::Copy(data_ + growthSize, oldData, oldSize); // Copy from old data finally.
                     // For Prepend, we have to reserve spaces for new data.
                 } else {
                     // directly operate in buffer
-                    size_ += growthSize;
                     if (size_ > capacity_) { // Case 2: is not sharing, but the capacity is not large enough to
                         // Different from Append, in Prepend, if the growthSize is too large, we have to move that after ::realloc.
                         // It'll make it slower.
                         SizeType oldCapacity = capacity_;
                         capacity_ = ArrayList<T>::CalcCapacity(size_);
-                        if (capacity_ - oldCapacity > oldCapacity * 1.5) {
+                        if (capacity_ - oldCapacity > oldCapacity * 2) {
                             // If we grow too large, leftover space might not large enough.
                             // At this time, we simply reallocate and copy it to right place.
                             T *oldData = data_;
@@ -184,18 +187,68 @@ class ArrayList {
                             // We don't need to free RC pointer because it was assigned to new position in SimpleAllocate
                         } else {
                             ArrayList<T>::SimpleReallocate();
-                            TypeTrait<T>::Move(data_ + growthSize, data_, oldSize);
+                            TypeTrait::Move(data_ + growthSize, data_, oldSize);
                         }
                     } else {
                         // Case 3: the capacity is large enough, we just need to reset the size.
                         // In Prepend, we need to move the data because the new data will be put in front of previous data.
-                        TypeTrait<T>::Move(data_ + growthSize, data_, oldSize);
+                        TypeTrait::Move(data_ + growthSize, data_, oldSize);
                     }
                 }
             } else {
                 new(this)ArrayList<T>(growthSize, ArrayList<T>::CalcCapacity(size_));
             }
         }
+    }
+
+    bool GrowthInsert(SizeType growthIndex, SizeType growthSize) {
+        if (growthIndex < size_ && growthSize) {
+            if (data_) {
+                SizeType oldSize = size_;
+                size_ += growthSize;
+                if (*buf_ && (**buf_).GetValue() > 1) { // Case 1: this object is sharing with another object.
+                    T *const oldData = data_; // Store old data and detach from old memory.
+                    (**buf_).DecrementRef();
+                    capacity_ = ArrayList<T>::CalcCapacity(size_);
+                    ArrayList<T>::SimpleAllocate(nullptr);
+                    TypeTrait::Copy(data_, oldData, growthIndex);
+                    TypeTrait::Copy(data_ + growthIndex + growthSize, oldData + growthIndex,
+                                    oldSize - growthIndex);
+                    // For Insert, we have to reserve spaces in middle of data.
+                    // Therefore, we need to copy separately.
+                } else {
+                    // directly operate in buffer
+                    if (size_ > capacity_) { // Case 2: is not sharing, but the capacity is not large enough
+                        // Similar to Prepend, we need to move after reallocate. So this mechanism is maintained.
+                        SizeType oldCapacity = capacity_;
+                        capacity_ = ArrayList<T>::CalcCapacity(size_);
+                        if (capacity_ - oldCapacity > oldCapacity * 2) {
+                            T *oldData = data_;
+                            ArrayList<T>::SimpleAllocate(*buf_);
+                            EscapistPrivate::PodTypeTrait<T>::Copy(data_, oldData, growthIndex);
+                            EscapistPrivate::PodTypeTrait<T>::Copy(data_ + growthIndex + growthSize,
+                                                                   oldData + growthIndex, oldSize - growthIndex);
+                            ::free((void *) buf_);
+                            // Because in this case, this object doesn't share with any other objects, we don't need to run the constructor.
+                            // But remember to free the old data.
+                            // We don't need to free RC pointer because it was assigned to new position in SimpleAllocate
+                        } else {
+                            ArrayList<T>::SimpleReallocate();
+                            TypeTrait::Move(data_ + growthIndex + growthSize, data_ + growthIndex,
+                                            oldSize - growthIndex);
+                            // Data before the index stayed static, but after the index should be moved.
+                        }
+                    } else {
+                        // Case 3: the capacity is large enough, we just need to reset the size.
+                        // In Insert, we need to move the data just after the index.
+                        TypeTrait::Move(data_ + growthIndex + growthSize, data_ + growthIndex, oldSize - growthIndex);
+                    }
+                }
+                return true;
+            }
+        }
+        return false; // In these two cases, we cannot insert.
+        // Because: the data is null, or the index is invalid.
     }
 
 public:
@@ -205,7 +258,7 @@ public:
             : size_(size), capacity_(capacity) {
         assert(size <= capacity);
         if (capacity_) {
-            ArrayList<T>::SimpleAllocate();
+            ArrayList<T>::SimpleAllocate(nullptr);
         }
     }
 
@@ -213,7 +266,7 @@ public:
             : size_(count + offset), capacity_(ArrayList<T>::CalcCapacity(size_)) {
         if (count) { // Check if we need to allocate data from heap. (Another name: Free Store, CS 128)
             ArrayList<T>::SimpleAllocate(nullptr);
-            TypeTrait<T>::Fill(data_ + offset, value, count); // Finally, fill values repetitively.
+            TypeTrait::Fill(data_ + offset, value, count); // Finally, fill values repetitively.
         } else {
             new(this)ArrayList<T>();
         }
@@ -223,7 +276,7 @@ public:
             : size_(size + offset), capacity_(ArrayList<T>::CalcCapacity(size_)) {
         if (data && size) {
             ArrayList<T>::SimpleAllocate(nullptr);
-            TypeTrait<T>::Copy(data_ + offset, data, size);
+            TypeTrait::Copy(data_ + offset, data, size);
         } else {
             new(this)ArrayList<T>();
         }
@@ -272,7 +325,7 @@ public:
                     ::free((void *) (*buf_));
                 }
             }
-            TypeTrait<T>::Destroy(data_, size_);
+            TypeTrait::Destroy(data_, size_);
             ::free((void *) buf_);
         }
     }
@@ -292,7 +345,7 @@ public:
                 (**buf_).DecrementRef();
                 capacity_ = ArrayList<T>::CalcCapacity(size_);
                 ArrayList<T>::SimpleAllocate(*buf_);
-                TypeTrait<T>::Copy(data_, oldData, size_);
+                TypeTrait::Copy(data_, oldData, size_);
             }
             return data_;
         }
@@ -310,7 +363,7 @@ public:
             (**buf_).DecrementRef();
             capacity_ = ArrayList<T>::CalcCapacity(size_);
             ArrayList<T>::SimpleAllocate(*buf_);
-            TypeTrait<T>::Copy(data_, oldData, size_);
+            TypeTrait::Copy(data_, oldData, size_);
         }
         return data_[index];
     }
@@ -320,16 +373,70 @@ public:
         return data_[index];
     }
 
+    ArrayList<T> &SetAt(SizeType index, const T &value) {
+        assert(data_ && index < size_);
+        if (buf_ && *buf_ && (**buf_).GetValue() > 1) { // This object is sharing, detach at first.
+            T *oldData = data_;
+            (**buf_).DecrementRef();
+            capacity_ = ArrayList<T>::CalcCapacity(size_);
+            ArrayList<T>::SimpleAllocate(*buf_);
+            TypeTrait::Copy(data_, oldData, index);
+            TypeTrait::Copy(data_ + index + 1, oldData - index, size_ - index);
+        }
+        new(data_ + index)T(value);
+    }
+
+    bool IsEmpty() const noexcept {
+        return data_ && size_;
+    }
+
+    bool IsNull() const noexcept {
+        return buf_ && capacity_;
+    }
+
+    bool IsEmptyOrNull() const noexcept {
+        return buf_ && data_ && size_ && capacity_;
+    }
+
+    ArrayList<T> &Empty() noexcept {
+        if (data_ && size_) {
+            if (buf_ && *buf_ && (**buf_).GetValue() > 1) {
+                T *oldData = data_;
+                (**buf_).DecrementRef();
+            } else {
+                TypeTrait::Destroy(data_, size_);
+                size_ = 0;
+            }
+        }
+        return *this;
+    }
+
+    ArrayList<T> &EnsureCapacity(SizeType capacity) noexcept {
+        if (capacity > capacity_) {
+            if (buf_ && *buf_ && (**buf_).GetValue() > 1) { // This object is sharing, detach at first.
+                T *oldData = data_;
+                (**buf_).DecrementRef();
+                capacity_ = capacity;
+                ArrayList<T>::SimpleAllocate(*buf_);
+                TypeTrait::Copy(data_, oldData, size_);
+            } else {
+                capacity_ = capacity;
+                ArrayList<T>::SimpleReallocate();
+            }
+        }
+        return *this;
+    }
+
     ArrayList<T> &Append(const T &value, SizeType count = 1, SizeType offset = 0) noexcept {
         if (count) {
-            TypeTrait<T>::Fill(ArrayList<T>::GrowthAppend(offset + count) + offset, value, count);
+            TypeTrait::Fill(ArrayList<T>::GrowthAppend(offset + count) + offset, value, count);
         }
         return *this;
     }
 
     ArrayList<T> &Append(const T *data, SizeType size, SizeType offset = 0) noexcept {
         if (data && size) {
-            TypeTrait<T>::Copy(ArrayList<T>::GrowthAppend(offset + size) + offset, data, size);
+            TypeTrait::Copy(ArrayList<T>::GrowthAppend(offset + size) + offset, data_, size);
         }
         return *this;
     }
@@ -359,7 +466,7 @@ public:
     ArrayList<T> &Prepend(const T &value, SizeType count = 1, SizeType offset = 0) noexcept {
         if (count) {
             ArrayList<T>::GrowthPrepend(offset + count);
-            TypeTrait<T>::Fill(data_ + offset, value, count);
+            TypeTrait::Fill(data_ + offset, value, count);
         }
         return *this;
     }
@@ -367,7 +474,7 @@ public:
     ArrayList<T> &Prepend(const T *data, SizeType size, SizeType offset = 0) noexcept {
         if (data && size) {
             ArrayList<T>::GrowthPrepend(offset + size);
-            TypeTrait<T>::Copy(data_ + offset, data, size);
+            TypeTrait::Copy(data_ + offset, data, size);
         }
         return *this;
     }
@@ -383,7 +490,8 @@ public:
         return *this;
     }
 
-    ArrayList<T> &Prepend(const ArrayList<T> &other, SizeType size, SizeType otherOffset, SizeType currentOffset) {
+    ArrayList<T> &Prepend(const ArrayList<T> &other, SizeType size,
+                          SizeType otherOffset = 0, SizeType currentOffset = 0) {
         if (other.data_ && other.size_) {
             if (size == other.size_ && !otherOffset && !currentOffset) {
                 return ArrayList<T>::Prepend(other);
@@ -392,6 +500,84 @@ public:
             }
         }
         return *this;
+    }
+
+    ArrayList<T> &Insert(SizeType index, const T &value, SizeType count = 1, SizeType offset = 0) noexcept {
+        if (count && ArrayList<T>::GrowthInsert(index, offset + count)) {
+            TypeTrait::Fill(data_ + index + offset, value, count);
+        }
+        return *this;
+    }
+
+    ArrayList<T> &Insert(SizeType index, const T *data, SizeType size, SizeType offset = 0) noexcept {
+        if (data && size && ArrayList<T>::GrowthInsert(index, offset + size)) {
+            TypeTrait::Copy(data_ + index + offset, data, size);
+        }
+        return *this;
+    }
+
+    ArrayList<T> &Insert(SizeType index, const ArrayList<T> &other) noexcept {
+        if (data_) {
+            if (other.data_ && other.size_) {
+                return ArrayList<T>::Insert(index, other.data_, other.size_, 0);
+            }
+        } else {
+            new(this)ArrayList<T>(other);
+        }
+        return *this;
+    }
+
+    ArrayList<T> &Insert(SizeType index, const ArrayList<T> &other, SizeType size,
+                         SizeType otherOffset = 0, SizeType currentOffset = 0) {
+        if (size && other.data_ && other.size_) {
+            if (size == other.size_ && !otherOffset && !currentOffset) {
+                return ArrayList<T>::Insert(index, other);
+            } else {
+                return ArrayList<T>::Insert(index, other.data_ + otherOffset, size, currentOffset);
+            }
+        }
+        return *this;
+    }
+
+    ArrayList<T> &Delete(SizeType index, SizeType count, bool copyTo = false) noexcept {
+        if (index < size_ && count) {
+            if (buf_ && *buf_ && (**buf_).GetValue() > 1) {
+                T *oldData = data_;
+                (**buf_).DecrementRef();
+                capacity_ = ArrayList<T>::CalcCapacity(size_);
+                ArrayList<T>::SimpleAllocate(*buf_);
+                TypeTrait::Copy(data_, oldData, index);
+                TypeTrait::Copy(data_ + index, oldData + index + count, size_ - index - count);
+            } else {
+                TypeTrait::Move(data_ + index, data_ + index + count, size_ - index - count);
+            }
+            size_ -= count;
+        }
+        return *this;
+    }
+
+    ArrayList<T> Left(SizeType count) const noexcept {
+        if (count >= size_) {
+            return *this;
+        } else {
+            return ArrayList<T>(data_, count);
+        }
+    }
+
+    ArrayList<T> Right(SizeType count) const noexcept {
+        if (count >= size_) {
+            return *this;
+        } else {
+            return ArrayList<T>(data_ + size_ - count, count);
+        }
+    }
+
+    ArrayList<T> Middle(SizeType index, SizeType count) const noexcept {
+        if (index < size_ && count) {
+            return *this;
+        } else {
+            return ArrayList<T>(data_ + index, count);
+        }
     }
 };
 

@@ -42,19 +42,20 @@ public:
 namespace EscapistPrivate {
     template<typename T>
     class PodTypeTrait : public TypeTrait<T> {
-        using Base = TypeTrait<T>;
 
     public:
         static void Copy(T *dest, const T *src, SizeType size) noexcept {
-            TypeTrait<T>::Copy(dest, src, size);
+            ::memcpy((void *) dest, (const void *) src, size * sizeof(T));
         }
 
         static void Move(T *dest, const T *src, SizeType size) noexcept {
-            TypeTrait<T>::Move(dest, src, size);
+            ::memmove((void *) dest, (const void *) src, size * sizeof(T));
         }
 
         static void Fill(T *dest, const T &value, size_t count) noexcept {
-            TypeTrait<T>::Fill(dest, value, count);
+            for (; count > 0; --count, ++dest) {
+                ::memcpy((void *) dest, (const void *) &value, sizeof(T));
+            }
         }
 
         static void Destroy(T *dest) noexcept {}
@@ -64,8 +65,6 @@ namespace EscapistPrivate {
 
     template<typename T>
     class GenericTypeTrait : public TypeTrait<T> {
-        using Base = TypeTrait<T>;
-
     public:
         static void Copy(T *dest, const T *src, SizeType size) noexcept {
             for (; size > 0; ++dest, ++src, --size)

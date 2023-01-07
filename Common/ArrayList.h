@@ -111,6 +111,10 @@ class ArrayList {
         *buf_ = ref;
     }
 
+    /**
+     * 1. Reallocate the data by current capacity.\n
+     * 2. Reassign the reference count pointer and data pointer.
+     */
     void SimpleReallocate() {
         assert(buf_);
         ReferenceCount **oldBuf = buf_;
@@ -123,9 +127,9 @@ class ArrayList {
     }
 
     /**
-     * Grow the size at the end of data.
-     * @param growthSize
-     * @return
+     * Grow the indicated size at the end of data.
+     * @param growthSize size
+     * @return position to add new data.
      */
     T *GrowthAppend(SizeType growthSize) {
         if (growthSize) {
@@ -156,6 +160,10 @@ class ArrayList {
         return data_ + size_;
     }
 
+    /**
+     * Grow the indicated size at the beginning of data, and move existed date to the right.
+     * @param growthSize size
+     */
     void GrowthPrepend(SizeType growthSize) {
         if (growthSize) {
             if (data_) { // Check if we have data before.
@@ -201,6 +209,12 @@ class ArrayList {
         }
     }
 
+    /**
+     * Grow the indicated size at the middle of data. Data on the right will be moved.
+     * @param growthIndex target index
+     * @param growthSize size
+     * @return true if data is reserved successfully.
+     */
     bool GrowthInsert(SizeType growthIndex, SizeType growthSize) {
         if (growthIndex < size_ && growthSize) {
             if (data_) {
@@ -254,6 +268,9 @@ class ArrayList {
 public:
     ArrayList() noexcept: buf_(nullptr), data_(nullptr), size_(0), capacity_(0) {}
 
+    /**
+     * Initialize by indicated size and capacity. capacity cannot smaller than size!
+     */
     ArrayList(SizeType size, SizeType capacity)
             : size_(size), capacity_(capacity) {
         assert(size <= capacity);
@@ -262,6 +279,12 @@ public:
         }
     }
 
+    /**
+     * Initialize by an indicated value.
+     * @param value indicated value
+     * @param count count of value
+     * @param offset reserved count before values.
+     */
     ArrayList(const T &value, SizeType count = 1, SizeType offset = 0)
             : size_(count + offset), capacity_(ArrayList<T>::CalcCapacity(size_)) {
         if (count) { // Check if we need to allocate data from heap. (Another name: Free Store, CS 128)
@@ -272,6 +295,12 @@ public:
         }
     }
 
+    /**
+     * Initialize by data
+     * @param data indicated data
+     * @param size size of data
+     * @param offset reserved count before data.
+     */
     ArrayList(const T *data, SizeType size, SizeType offset = 0)
             : size_(size + offset), capacity_(ArrayList<T>::CalcCapacity(size_)) {
         if (data && size) {
@@ -282,6 +311,10 @@ public:
         }
     }
 
+    /**
+     * Initialize by another object, add reference count.
+     * @param other another object
+     */
     ArrayList(const ArrayList<T> &other) noexcept
             : buf_(other.buf_), data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
         if (buf_ && data_ && size_) {

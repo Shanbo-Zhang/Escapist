@@ -25,6 +25,7 @@ Finish: `ArrayList<T>::Insert`, `ArrayList<T>::Empty`, `ArrayList<T>::EnsureCapa
 Interesting Bugs:
 * In ArrayList<T> constructor, I forgot to use a member variable without initialization in construcor in a member function.
 
+  
 ### January 6th 2023:
 Because I linked the old repository to the wrong directory, I have to copy and update all my code to this new repository.
   

@@ -277,6 +277,49 @@ public:
         }
     }
 
+    SizeType GetSize() const noexcept {
+        return data_ ? size_ : 0;
+    }
+
+    SizeType GetCapacity() const noexcept {
+        return capacity_;
+    }
+
+    T *GetData() noexcept {
+        if (data_) {
+            if (buf_ && *buf_ && (**buf_).GetValue() > 1) { // This object is sharing, detach at first.
+                T *oldData = data_;
+                (**buf_).DecrementRef();
+                capacity_ = ArrayList<T>::CalcCapacity(size_);
+                ArrayList<T>::SimpleAllocate(*buf_);
+                TypeTrait<T>::Copy(data_, oldData, size_);
+            }
+            return data_;
+        }
+        return nullptr;
+    }
+
+    const T *GetConstData() const {
+        return data_;
+    }
+
+    T &GetAt(SizeType index) {
+        assert(data_ && index < size_);
+        if (buf_ && *buf_ && (**buf_).GetValue() > 1) { // This object is sharing, detach at first.
+            T *oldData = data_;
+            (**buf_).DecrementRef();
+            capacity_ = ArrayList<T>::CalcCapacity(size_);
+            ArrayList<T>::SimpleAllocate(*buf_);
+            TypeTrait<T>::Copy(data_, oldData, size_);
+        }
+        return data_[index];
+    }
+
+    const T &GetConstAt(SizeType index) const {
+        assert(data_ && index < size_);
+        return data_[index];
+    }
+
     ArrayList<T> &Append(const T &value, SizeType count = 1, SizeType offset = 0) noexcept {
         if (count) {
             TypeTrait<T>::Fill(ArrayList<T>::GrowthAppend(offset + count) + offset, value, count);

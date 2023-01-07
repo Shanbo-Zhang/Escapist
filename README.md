@@ -21,6 +21,7 @@
 
 ### January 7th 2023:
 Finish: `ArrayList<T>::Insert`, `ArrayList<T>::Empty`, `ArrayList<T>::EnsureCapacity`, `ArrayList<T>::Delete`, `ArrayList<T>::Assign`, `ArrayList<T>::Left`, `ArrayList<T>::Right`, `ArrayList<T>::Middle`, `ByteArray`
+
 Interesting Bugs:
 * In ArrayList<T> constructor, I forgot to use a member variable without initialization in construcor in a member function.
 

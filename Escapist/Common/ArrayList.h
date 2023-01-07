@@ -106,7 +106,7 @@ class ArrayList {
      */
     void SimpleAllocate(ReferenceCount *const &ref) {
         assert(buf_ = (ReferenceCount **) ::malloc(ArrayList<T>::TotalCapacity(capacity_)));
-        // TODO: Why sometimes malloc fails and return nullptr? UIUC CS 340 / CS 341!
+        // TODO: Why sometimes malloc fails and return nullptr? UIUC CS 233 / CS 340 / CS 341!
         data_ = (T *) (buf_ + 1); // Point the data to one pointer behind the head.
         *buf_ = ref;
     }

@@ -265,6 +265,44 @@ class ArrayList {
         // Because: the data is null, or the index is invalid.
     }
 
+    void AssignReset(SizeType newSize) {
+        if (newSize) {
+            if (data_ && size_) {
+                if (*buf_ && (**buf_).GetValue() > 1) {
+                    (**buf_).DecrementRef();
+                    size_ = newSize;
+                    capacity_ = ArrayList<T>::CalcCapacity(size_);
+                    ArrayList<T>::SimpleAllocate(nullptr);
+                } else {
+                    SizeType oldSize = size_;
+                    size_ = newSize;
+                    if (size_ > capacity_) {
+                        SizeType oldCapacity = capacity_;
+                        capacity_ = ArrayList<T>::CalcCapacity(size_);
+                        if (capacity_ - oldCapacity > oldCapacity * 2) {
+                            T *oldData = data_;
+                            ArrayList<T>::SimpleAllocate(*buf_);
+                        } else {
+                            ArrayList<T>::SimpleReallocate();
+                        }
+                    }
+                }
+            } else {
+                size_ = newSize;
+                capacity_ = ArrayList<T>::CalcCapacity(newSize);
+                ArrayList<T>::SimpleAllocate(nullptr);
+            }
+        } else {
+            if (buf_ && *buf_ && (**buf_).GetValue() > 1) {
+                (**buf_).DecrementRef();
+                new(this)ArrayList<T>();
+            } else {
+                TypeTrait::Destroy(data_, size_);
+                size_ = 0;
+            }
+        }
+    }
+
 public:
     ArrayList() noexcept: buf_(nullptr), data_(nullptr), size_(0), capacity_(0) {}
 
@@ -434,8 +472,8 @@ public:
     ArrayList<T> &Empty() noexcept {
         if (data_ && size_) {
             if (buf_ && *buf_ && (**buf_).GetValue() > 1) {
-                T *oldData = data_;
                 (**buf_).DecrementRef();
+                new(this)ArrayList<T>();
             } else {
                 TypeTrait::Destroy(data_, size_);
                 size_ = 0;
@@ -587,6 +625,45 @@ public:
             size_ -= count;
         }
         return *this;
+    }
+
+    ArrayList<T> &Assign(const T &value, SizeType count, SizeType offset = 0) noexcept {
+        ArrayList<T>::AssignReset(count + offset);
+        if (count) {
+            TypeTrait::Fill(data_ + offset, value, count);
+        }
+        return *this;
+    }
+
+    ArrayList<T> &Assign(const T *data, SizeType size, SizeType offset = 0) noexcept {
+        ArrayList<T>::AssignReset(size + offset);
+        if (data && size) {
+            TypeTrait::Copy(data_ + offset, data, size);
+        }
+        return *this;
+    }
+
+    ArrayList<T> &Assign(const ArrayList<T> &other) noexcept {
+        ArrayList<T>::Empty();
+        if (other.data_ && other.size_) {
+            new(this)ArrayList<T>(other);
+        } else {
+            new(this)ArrayList<T>();
+        }
+        return *this;
+    }
+
+    ArrayList<T> &Assign(const ArrayList<T> &other, SizeType size,
+                         SizeType otherOffset=0, SizeType currentOffset=0) noexcept {
+        if (size) {
+            if (size == other.size_ && !otherOffset && !currentOffset) {
+                return ArrayList<T>::Assign(other);
+            } else {
+                return ArrayList<T>::Empty();
+            }
+        } else {
+            return ArrayList<T>::Assign(other.data + otherOffset, size, currentOffset);
+        }
     }
 
     ArrayList<T> Left(SizeType count) const noexcept {

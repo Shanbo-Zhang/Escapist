@@ -3,4 +3,4 @@ project(Escapist)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(Escapist main.cpp General.h Common/Internal/ReferenceCount.h Common/Internal/TypeTrait.h Common/ArrayList.h)
+add_executable(Escapist main.cpp Escapist/General.h Escapist/Common/Internal/ReferenceCount.h Escapist/Common/Internal/TypeTrait.h Escapist/Common/ArrayList.h Escapist/Common/ByteArray.h)

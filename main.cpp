@@ -1,5 +1,6 @@
 #include <iostream>
-#include "Common/ArrayList.h"
+#include "Escapist/Common/ArrayList.h"
+#include "Escapist/Common/ByteArray.h"
 
 #define Output()\
 for (SizeType index = 0; index < arr.GetSize(); ++index) {\

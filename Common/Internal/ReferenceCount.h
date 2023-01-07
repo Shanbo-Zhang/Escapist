@@ -5,7 +5,7 @@
 #ifndef ESCAPIST_REFERENCECOUNT_H
 #define ESCAPIST_REFERENCECOUNT_H
 
-#include "../General.h"
+#include "../../General.h"
 #include <atomic>
 
 namespace EscapistPrivate {

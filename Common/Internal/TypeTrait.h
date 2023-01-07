@@ -5,7 +5,7 @@
 #ifndef ESCAPIST_TYPETRAIT_H
 #define ESCAPIST_TYPETRAIT_H
 
-#include "../General.h"
+#include "../../General.h"
 #include <memory>
 #include <type_traits>
 

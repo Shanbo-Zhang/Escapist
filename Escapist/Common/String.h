@@ -12,7 +12,6 @@
 
 template<typename Ch>
 class CharTrait {
-    using Self = CharTrait<Ch>;
 public:
     static inline void Copy(Ch *dest, const Ch *src, SizeType size) {
         assert(dest && src && size);
@@ -405,6 +404,72 @@ private:
         }
     }
 
+    Ch *GrowthAppend(SizeType growthLength) {
+        if (growthLength) {
+            switch (mode_) {
+                case StringMode::Null: // just initialize by indicated size.
+                    return BasicString<Ch>::Initialize(growthLength, true);
+                case StringMode::SmallString: {
+                    SizeType oldLen = BasicString<Ch>::GetSmallLength(); // Store the old length.
+                    SizeType newLen = oldLen + growthLength; // Calculate new length~
+                    if (newLen < BasicString<Ch>::SmallStringCapacity) {
+                        // If the new length are still large enough, keep in this mode.
+                        BasicString<Ch>::SetSmallLength(newLen, true); // just set new length.
+                        return sso_ + oldLen; // Append method will operate something in sso pointer
+                    } else { // We need to switch to NeedAllocate mode because it's too large to accommodate
+                        Ch oldStr[BasicString<Ch>::SmallStringCapacity]; // sso is in union, so we have to copy out from union
+                        CharTrait<Ch>::Copy(oldStr, sso_, oldLen);
+                        BasicString<Ch>::InitEager(newLen, true); // reinitialize and copy old data
+                        CharTrait<Ch>::Copy(buf_.str_, oldStr, oldLen);
+                        return buf_.str_ + oldLen; // we'll operate in heap.
+                    }
+                    assert(false); // never reach ~~~~~
+                }
+                case StringMode::NeedAllocate: {
+                    if (*buf_.buf_ && (**buf_.buf_).GetValue() > 1) {
+                        Ch *const oldStr = buf_.str_; // Store old data pointer for copy
+                        SizeType oldLen = buf_.len_; // Store old length because we'll assign a new value~
+                        (**buf_.buf_).DecrementRef();
+                        Ch *newStr = BasicString<Ch>::Initialize(oldLen + growthLength, true);
+                        CharTrait<Ch>::Copy(newStr, oldStr, oldLen);
+                        // Because string will be initialized in different mode based on new length, we have to store it before copy.
+                        return newStr + oldLen;
+                    } else {
+                        SizeType oldLen = buf_.len_; // store it at first for copy.
+                        buf_.len_ += growthLength;
+                        if (buf_.len_ >= buf_.capacity_) { // Capacity isn't large enough, so enlarge
+                            ReferenceCount **oldBuf = buf_.buf_;
+                            ReferenceCount *oldRef = *buf_.buf_;
+                            buf_.capacity_ = buf_.len_ * (long double) 1.5;
+                            buf_.buf_ = (ReferenceCount **) ::realloc(buf_.buf_,
+                                                                      BasicString<Ch>::TotalCapacity(buf_.capacity_));
+                            if (buf_.buf_ != oldBuf) {
+                                // If the address changed, data pointer and reference count pointer still point to old address.
+                                *buf_.buf_ = oldRef;
+                                buf_.str_ = (Ch *) (buf_.buf_ + 1);
+                            }
+                        }
+                        // We don't need to do anything if the capacity is large enough.
+                        buf_.str_[buf_.len_] = Ch(0); // Set 0 for new length
+                        return buf_.str_ + oldLen;
+                    }
+                }
+                case StringMode::DirectCopy: {
+                    Ch *const oldStr = buf_.str_;
+                    SizeType oldLen = buf_.len_;
+                    Ch *newStr = BasicString<Ch>::Initialize(buf_.len_ + growthLength, true);
+                    CharTrait<Ch>::Copy(newStr, oldStr, oldLen);
+                    return newStr + oldLen;
+                }
+                default:
+                    assert(false);
+            }
+        } else {
+            return BasicString<Ch>::GetData() + BasicString<Ch>::GetLength();
+        }
+        return nullptr;
+    }
+
 public:
     /**
      * Default Constructor, the string is null.
@@ -436,6 +501,7 @@ public:
     /**
      * Initialize the string based on a valid string and a valid length.
      * If the str is nullptr or length is 0, it'll still be null.
+     * @date January 8th 2023
      * @param str existed string
      * @param length length of string
      * @param frontOffset reserved space before assignment
@@ -460,7 +526,16 @@ public:
     explicit BasicString(const Ch *str) noexcept
             : BasicString(str, CharTrait<Ch>::GetLength(str), 0, 0) {}
 
-    BasicString(const BasicString<Ch> &other) noexcept: mode_(other.mode_), buf_(other.buf_) {
+    /**
+     * Copy constructor, initialize this string by another string object.\n
+     * Null String: initialize this object as null, too.\n
+     * Small String: Copy-and paste, because it's small.\n
+     * Else: if it doesn't have reference count, then create and initialize it.\n
+     * If it does have, plus one.
+     * @date January 8th 2023
+     * @param other another string object
+     */
+    BasicString(const BasicString<Ch> &other) noexcept: mode_(other.mode_), buf_(other.buf_) { // Copy at first
         if (mode_ == StringMode::NeedAllocate) { // we need to change something in this mode.
             if (*buf_.buf_) { // We copy it directly, but we need to increase the reference count if it has.
                 (**buf_.buf_).IncrementRef();
@@ -471,6 +546,15 @@ public:
         }
     }
 
+    /**
+     * Initialize constructor by another object.
+     * @date January 8th 2023
+     * @param other another string object
+     * @param length indicated length of string
+     * @param otherFrontOffset Because we cannot operate this like a pointer, this is to show how many characters we ignore in front of data.
+     * @param currentFrontOffset reserved space before assignment
+     * @param currentBackOffset reserved space behind assignment
+     */
     BasicString(const BasicString<Ch> &other, SizeType length, SizeType, SizeType otherFrontOffset = 0,
                 SizeType currentFrontOffset = 0, SizeType currentBackOffset = 0) noexcept {
         if (!currentFrontOffset && !currentBackOffset && !otherFrontOffset && length == other.GetLength()) {
@@ -481,6 +565,10 @@ public:
         }
     }
 
+    /**
+     * @date January 8th 2023
+     * @return current length of string
+     */
     SizeType GetLength() const {
         switch (mode_) {
             case StringMode::Null:
@@ -488,15 +576,22 @@ public:
             case StringMode::SmallString:
                 return BasicString<Ch>::GetSmallLength();
             case StringMode::NeedAllocate:
+            case StringMode::DirectCopy:
                 return buf_.len_;
             default:
                 assert(false);
         }
     }
 
+    /**
+     * @date January 8th 2023
+     * @return Current length of string\n
+     * Tips: If this string is sharing with another string, then it'll return 0.
+     */
     SizeType GetCapacity() const {
         switch (mode_) {
             case StringMode::Null:
+            case StringMode::DirectCopy:
                 return 0;
             case StringMode::SmallString:
                 return BasicString<Ch>::SmallStringCapacity;
@@ -507,6 +602,10 @@ public:
         }
     }
 
+    /**
+     * @date January 8th 2023
+     * @return true if the string is empty (no content)
+     */
     bool IsEmpty() const noexcept {
         switch (mode_) {
             case StringMode::Null:
@@ -514,12 +613,17 @@ public:
             case StringMode::SmallString:
                 return !BasicString<Ch>::GetSmallLength();
             case StringMode::NeedAllocate:
+            case StringMode::DirectCopy:
                 return !buf_.len_;
             default:
                 assert(false);
         }
     }
 
+    /**
+     * @date January 8th 2023
+     * @return true if the object doesn't point to anything.
+     */
     bool IsNull() const {
         switch (mode_) {
             case StringMode::Null:
@@ -528,11 +632,17 @@ public:
                 return false;
             case StringMode::NeedAllocate:
                 return !(buf_.str_ && buf_.capacity_);
+            case StringMode::DirectCopy:
+                return !buf_.str_;
             default:
                 assert(false);
         }
     }
 
+    /**
+     * @date January 8th 2023
+     * @return true if empty or null.
+     */
     bool IsEmptyOrNull() const {
         switch (mode_) {
             case StringMode::Null:
@@ -546,6 +656,12 @@ public:
         }
     }
 
+    /**
+     * return the string content pointer\n
+     * Different from GetConstData, if it's sharing with another string, it'll detach from shared object.
+     * @date January 8th 2023
+     * @return string pointer
+     */
     Ch *GetData() {
         switch (mode_) {
             case StringMode::Null:
@@ -563,11 +679,19 @@ public:
                     );
                 }
                 return buf_.str_;
+            case StringMode::DirectCopy:
+                new(this)BasicString<Ch>(buf_.str_, buf_.len_, 0, 0);
+                return buf_.str_;
             default:
                 assert(false);
         }
+        return nullptr;
     }
 
+    /**
+     * @date January 8th 2023
+     * @return string's const pointer
+     */
     const Ch *GetConstData() const {
         switch (mode_) {
             case StringMode::Null:
@@ -575,11 +699,37 @@ public:
             case StringMode::SmallString:
                 return sso_;
             case StringMode::NeedAllocate:
+            case StringMode::DirectCopy:
                 return buf_.str_;
             default:
                 break;
         }
         assert(false);
+    }
+
+    BasicString<Ch> &Append(const Ch &ch, SizeType count, SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+        if (ch && count) {
+            Ch *pos = BasicString<Ch>::GrowthAppend(frontOffset + count + backOffset);
+            if (pos) {
+                CharTrait<Ch>::Fill(pos + frontOffset, ch, count);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Append(const Ch *str, SizeType length,
+                            SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+        if (str && length) {
+            Ch *pos = BasicString<Ch>::GrowthAppend(frontOffset + length + backOffset);
+            if (pos) {
+                CharTrait<Ch>::Copy(pos + frontOffset, str, length);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Append(const Ch *str) noexcept {
+        return BasicString<Ch>::Append(str, CharTrait<Ch>::GetLength(str), 0, 0);
     }
 };
 

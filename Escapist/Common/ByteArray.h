@@ -7,6 +7,8 @@
 
 #include "../General.h"
 #include "ArrayList.h"
+#include "String.h"
+#include <tchar.h>
 
 using byte = unsigned char;
 
@@ -166,6 +168,19 @@ public:
             ByteArray::Append(src);
         }
         return *this;
+    }
+
+    String GetString() const noexcept {
+        String result(L'{', 1);
+        Char each[4] = {0};
+        for (SizeType index = 0; index < GetSize(); ++index) {
+            wsprintf(each, L"%d", GetConstAt(index));
+            result.Append(each);
+            if (index < GetSize() - 1) {
+                result.Append(L',');
+            }
+        }
+        return result.Append(L'}', 1);
     }
 };
 

@@ -367,14 +367,14 @@ private:
         }
     }
 
-    void InitEager(SizeType length, bool putZero) noexcept {
+    void InitEager(SizeType length, bool putZero, ReferenceCount *const ref = nullptr) noexcept {
         if (mode_ != StringMode::NeedAllocate) { // When it switches from another mode.
             mode_ = StringMode::NeedAllocate;
         }
         buf_.len_ = length; // Assignment
         buf_.capacity_ = length * (long double) 1.5; // Narrowing conversion from 'SizeType'?
         assert(buf_.buf_ = (ReferenceCount **) ::malloc(BasicString<Ch>::TotalCapacity(buf_.capacity_)));
-        *buf_.buf_ = nullptr; // Assign the reference count pointer.
+        *buf_.buf_ = ref; // Assign the reference count pointer.
         buf_.str_ = (Ch *) (buf_.buf_ + 1);
         if (putZero) {
             buf_.str_[buf_.len_] = Ch(0);
@@ -431,8 +431,8 @@ private:
                         SizeType oldLen = buf_.len_; // Store old length because we'll assign a new value~
                         (**buf_.buf_).DecrementRef();
                         Ch *newStr = BasicString<Ch>::Initialize(oldLen + growthLength, true);
-                        CharTrait<Ch>::Copy(newStr, oldStr, oldLen);
                         // Because string will be initialized in different mode based on new length, we have to store it before copy.
+                        CharTrait<Ch>::Copy(newStr, oldStr, oldLen);
                         return newStr + oldLen;
                     } else {
                         SizeType oldLen = buf_.len_; // store it at first for copy.
@@ -466,6 +466,88 @@ private:
             }
         } else {
             return BasicString<Ch>::GetData() + BasicString<Ch>::GetLength();
+        }
+        return nullptr;
+    }
+
+    Ch *GrowthPrepend(SizeType growthLength) {
+        if (growthLength) {
+            switch (mode_) {
+                case StringMode::Null: // just initialize by indicated size.
+                    return BasicString<Ch>::Initialize(growthLength, true);
+                case StringMode::SmallString: {
+                    SizeType oldLen = BasicString<Ch>::GetSmallLength();
+                    SizeType newLen = oldLen + growthLength;
+                    if (newLen < BasicString<Ch>::SmallStringCapacity) {
+                        // If the new length are still large enough, keep in this mode.
+                        BasicString<Ch>::SetSmallLength(newLen, true);
+                        CharTrait<Ch>::Move(sso_ + growthLength, sso_, oldLen);
+                        // Because we need to prepend, so we need to reserve data in front.
+                        return sso_;
+                    } else { // We need to switch to NeedAllocate mode because it's too large to accommodate
+                        Ch oldStr[BasicString<Ch>::SmallStringCapacity]; // sso is in union, so we have to copy out from union
+                        CharTrait<Ch>::Copy(oldStr, sso_, oldLen);
+                        BasicString<Ch>::InitEager(newLen, true); // reinitialize and copy old data
+                        CharTrait<Ch>::Copy(buf_.str_ + growthLength, oldStr, oldLen); // ** + growthLength
+                        return buf_.str_; // we'll operate in heap.
+                    }
+                    assert(false); // never reach ~~~~~
+                }
+                case StringMode::NeedAllocate: {
+                    if (*buf_.buf_ && (**buf_.buf_).GetValue() > 1) {
+                        Ch *const oldStr = buf_.str_; // Store old data pointer for copy
+                        SizeType oldLen = buf_.len_; // Store old length because we'll assign a new value~
+                        (**buf_.buf_).DecrementRef();
+                        Ch *newStr = BasicString<Ch>::Initialize(oldLen + growthLength, true);
+                        // Because string will be initialized in different mode based on new length, we have to store it before copy.
+                        CharTrait<Ch>::Copy(newStr + growthLength, oldStr, oldLen); // ** growthLength
+                        return newStr;
+                    } else {
+                        SizeType oldLen = buf_.len_; // store it at first for copy.
+                        buf_.len_ += growthLength;
+                        if (buf_.len_ >= buf_.capacity_) { // Capacity isn't large enough, so enlarge
+                            // Different from append, we need to move data.
+                            // If we realloc and move, it'll case two move.
+                            // Therefore, if difference between those two capacity, it tend to allocate new data and copy it.
+                            ReferenceCount **oldBuf = buf_.buf_;
+                            SizeType oldCapacity = buf_.capacity_;
+                            buf_.capacity_ = buf_.len_ * (long double) 1.5;
+                            if (buf_.capacity_ - oldCapacity > oldCapacity * 2) {
+                                Ch *const oldStr = buf_.str_;
+                                BasicString<Ch>::InitEager(buf_.len_, true);
+                                CharTrait<Ch>::Copy(buf_.str_ + growthLength, oldStr, oldLen);
+                                ::free((void *) oldBuf);
+                            } else {
+                                ReferenceCount *oldRef = *buf_.buf_;
+                                buf_.buf_ = (ReferenceCount **) ::realloc(buf_.buf_,
+                                                                          BasicString<Ch>::TotalCapacity(
+                                                                                  buf_.capacity_));
+                                if (buf_.buf_ != oldBuf) {
+                                    *buf_.buf_ = oldRef;
+                                    buf_.str_ = (Ch *) (buf_.buf_ + 1);
+                                }
+                                CharTrait<Ch>::Move(buf_.str_ + growthLength, buf_.str_, oldLen);
+                            }
+                        } else { // Different from append, we need to move existed data although buffer is large enough
+                            CharTrait<Ch>::Move(buf_.str_ + growthLength, buf_.str_, oldLen);
+                        }
+                        // We don't need to do anything if the capacity is large enough.
+                        buf_.str_[buf_.len_] = Ch(0); // Set 0 for new length
+                        return buf_.str_;
+                    }
+                }
+                case StringMode::DirectCopy: {
+                    Ch *const oldStr = buf_.str_;
+                    SizeType oldLen = buf_.len_;
+                    Ch *newStr = BasicString<Ch>::Initialize(buf_.len_ + growthLength, true);
+                    CharTrait<Ch>::Copy(newStr + growthLength, oldStr, oldLen);
+                    return newStr;
+                }
+                default:
+                    assert(false);
+            }
+        } else {
+            return BasicString<Ch>::GetData();
         }
         return nullptr;
     }
@@ -707,7 +789,8 @@ public:
         assert(false);
     }
 
-    BasicString<Ch> &Append(const Ch &ch, SizeType count, SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+    BasicString<Ch> &Append(const Ch &ch, SizeType count = 1,
+                            SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
         if (ch && count) {
             Ch *pos = BasicString<Ch>::GrowthAppend(frontOffset + count + backOffset);
             if (pos) {
@@ -731,6 +814,71 @@ public:
     BasicString<Ch> &Append(const Ch *str) noexcept {
         return BasicString<Ch>::Append(str, CharTrait<Ch>::GetLength(str), 0, 0);
     }
+
+    BasicString<Ch> &Append(const BasicString<Ch> &other) noexcept {
+        if (mode_ == StringMode::Null) {
+            new(this)BasicString<Ch>(other);
+        } else {
+            return BasicString<Ch>::Append(other.GetConstData(), other.GetLength());
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Append(const BasicString<Ch> &other, SizeType length, SizeType otherOffset = 0,
+                            SizeType currentFrontOffset = 0, SizeType currentBackOffset = 0) {
+        if (length == other.GetLength()) {
+            return BasicString<Ch>::Append(other);
+        } else {
+            return BasicString<Ch>::Append(other.GetConstData() + otherOffset, length,
+                                           currentFrontOffset, currentBackOffset);
+        }
+    }
+
+    BasicString<Ch> &Prepend(const Ch &ch, SizeType count = 1,
+                            SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+        if (ch && count) {
+            Ch *pos = BasicString<Ch>::GrowthPrepend(frontOffset + count + backOffset);
+            if (pos) {
+                CharTrait<Ch>::Fill(pos + frontOffset, ch, count);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Prepend(const Ch *str, SizeType length,
+                            SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+        if (str && length) {
+            Ch *pos = BasicString<Ch>::GrowthPrepend(frontOffset + length + backOffset);
+            if (pos) {
+                CharTrait<Ch>::Copy(pos + frontOffset, str, length);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Prepend(const Ch *str) noexcept {
+        return BasicString<Ch>::Prepend(str, CharTrait<Ch>::GetLength(str), 0, 0);
+    }
+
+    BasicString<Ch> &Prepend(const BasicString<Ch> &other) noexcept {
+        if (mode_ == StringMode::Null) {
+            new(this)BasicString<Ch>(other);
+        } else {
+            return BasicString<Ch>::Prepend(other.GetConstData(), other.GetLength());
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Prepend(const BasicString<Ch> &other, SizeType length, SizeType otherOffset = 0,
+                            SizeType currentFrontOffset = 0, SizeType currentBackOffset = 0) {
+        if (length == other.GetLength()) {
+            return BasicString<Ch>::Prepend(other);
+        } else {
+            return BasicString<Ch>::Prepend(other.GetConstData() + otherOffset, length,
+                                           currentFrontOffset, currentBackOffset);
+        }
+    }
+
 };
 
 using StringA = BasicString<char>;

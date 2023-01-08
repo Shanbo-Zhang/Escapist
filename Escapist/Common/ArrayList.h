@@ -508,7 +508,8 @@ public:
 
     ArrayList<T> &Append(const T *data, SizeType size, SizeType offset = 0) noexcept {
         if (data && size) {
-            TypeTrait::Copy(ArrayList<T>::GrowthAppend(offset + size) + offset, data_, size);
+            TypeTrait::Copy(ArrayList<T>::GrowthAppend(offset + size) + offset, data, size);
+            /** @bug The second parameters are data_ at first, lol. */
         }
         return *this;
     }

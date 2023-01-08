@@ -25,10 +25,6 @@
 // Start defining some basic types based on different platforms
 #ifdef ESCAPIST_OS_WINDOWS
 
-//#include <winsock2.h>
-//#include <windows.h>
-#include <cassert>
-
 using Handle = void *;
 #if defined(ESCAPIST_64BITS)
 using Char = wchar_t;
@@ -38,6 +34,10 @@ using SizeType = unsigned long long;
 using Char = char;
 using SizeType = unsigned int;
 #endif
+
+//#include <winsock2.h>
+#include <windows.h>
+#include <cassert>
 #endif
 
 #endif //ESCAPIST_GENERAL_H

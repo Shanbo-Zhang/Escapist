@@ -171,7 +171,7 @@ public:
     }
 
     String GetString() const noexcept {
-        String result(L'{', 1);
+        String result;
         Char each[4] = {0};
         for (SizeType index = 0; index < GetSize(); ++index) {
             wsprintf(each, L"%d", GetConstAt(index));
@@ -180,7 +180,7 @@ public:
                 result.Append(L',');
             }
         }
-        return result.Append(L'}', 1);
+        return result.Prepend('{').Append(L'}');
     }
 };
 

@@ -118,6 +118,10 @@ public:
         }
         return nullptr;
     }
+
+    static void Reverse(const Ch *data) {
+
+    }
 };
 
 template<>
@@ -214,6 +218,9 @@ public:
         return nullptr;
     }
 
+    static void Reverse(char *data) {
+        ::strrev(data);
+    }
 };
 
 template<>
@@ -310,6 +317,10 @@ public:
             return lastPos;
         }
         return nullptr;
+    }
+
+    static void Reverse(wchar_t *data) {
+        ::wcsrev(data);
     }
 };
 
@@ -661,7 +672,7 @@ public:
      * @param frontOffset reserved space before assignment
      * @param backOffset reserved space behind assignment
      */
-    BasicString(const Ch &ch, SizeType count, SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+    explicit BasicString(const Ch &ch, SizeType count = 1, SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
         if (ch && count) { // Check if we need to use the memory.
             CharTrait<Ch>::Fill(
                     BasicString<Ch>::Initialize(frontOffset + count + backOffset, true) + frontOffset,
@@ -882,6 +893,16 @@ public:
         assert(false);
     }
 
+    /**
+     * Add a character count of times at the end of string.\n
+     * If the buffer is not large enough, it'll automatically enlarge and reinitialize.
+     * @date January 8th 2023
+     * @param ch indicated character
+     * @param count count
+     * @param frontOffset reserved data before added characters.
+     * @param backOffset reserved data behind added characters.
+     * @return itself
+     */
     BasicString<Ch> &Append(const Ch &ch, SizeType count = 1,
                             SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
         if (ch && count) {
@@ -892,6 +913,16 @@ public:
         return *this;
     }
 
+    /**
+     * Add a string by the indicated length at the end of string.\n
+     * If the buffer is not large enough, it'll automatically enlarge and reinitialize.
+     * @date January 8th 2023
+     * @param str indicated string
+     * @param length length of new string.
+     * @param frontOffset reserved data before added characters.
+     * @param backOffset reserved data behind added characters.
+     * @return itself
+     */
     BasicString<Ch> &Append(const Ch *str, SizeType length,
                             SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
         if (str && length) {
@@ -902,10 +933,22 @@ public:
         return *this;
     }
 
+    /**
+     * Add a string by the indicated length at the end of string.\n
+     * Its length is decided by position of zero.
+     * @param str indicated string
+     * @return itself
+     */
     BasicString<Ch> &Append(const Ch *str) noexcept {
         return BasicString<Ch>::Append(str, CharTrait<Ch>::GetLength(str), 0, 0);
     }
 
+    /**
+     * Add a string object at the end of string.\n
+     * Its length is decided by its member variable.
+     * @param other another object (cannot be itself)
+     * @return itself
+     */
     BasicString<Ch> &Append(const BasicString<Ch> &other) noexcept {
         if (mode_ == StringMode::Null) {
             new(this)BasicString<Ch>(other);
@@ -915,6 +958,16 @@ public:
         return *this;
     }
 
+    /**
+     * Add a string object by indicated length at the end of string.\n
+     * If the length is larger than its real length, it'll be detected.
+     * @param other another object
+     * @param length indicated length
+     * @param otherOffset characters that'll be skipped behind the head of data.
+     * @param currentFrontOffset reserved data before added characters.
+     * @param currentBackOffset reserved data behind added characters.
+     * @return
+     */
     BasicString<Ch> &Append(const BasicString<Ch> &other, SizeType length, SizeType otherOffset = 0,
                             SizeType currentFrontOffset = 0, SizeType currentBackOffset = 0) {
         if (length == other.GetLength()) {
@@ -925,6 +978,16 @@ public:
         }
     }
 
+    /**
+     * Add a character count of times at the beginning of string.\n
+     * If the buffer is not large enough, it'll automatically enlarge and reinitialize.
+     * @date January 8th 2023
+     * @param ch indicated character
+     * @param count count
+     * @param frontOffset reserved data before added characters.
+     * @param backOffset reserved data behind added characters.
+     * @return itself
+     */
     BasicString<Ch> &Prepend(const Ch &ch, SizeType count = 1,
                              SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
         if (ch && count) {
@@ -935,6 +998,16 @@ public:
         return *this;
     }
 
+    /**
+     * Add a string by the indicated length at the end of string.\n
+     * If the buffer is not large enough, it'll automatically enlarge and reinitialize.
+     * @date January 8th 2023
+     * @param str indicated string
+     * @param length length of new string.
+     * @param frontOffset reserved data before added characters.
+     * @param backOffset reserved data behind added characters.
+     * @return itself
+     */
     BasicString<Ch> &Prepend(const Ch *str, SizeType length,
                              SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
         if (str && length) {
@@ -945,10 +1018,23 @@ public:
         return *this;
     }
 
+    /**
+     * Add a string by the indicated length at the beginning of string.\n
+     * Its length is decided by position of zero.
+     * @param str indicated string
+     * @return itself
+     */
     BasicString<Ch> &Prepend(const Ch *str) noexcept {
         return BasicString<Ch>::Prepend(str, CharTrait<Ch>::GetLength(str), 0, 0);
     }
 
+
+    /**
+     * Add a string object at the beginning of string.\n
+     * Its length is decided by its member variable.
+     * @param other another object (cannot be itself)
+     * @return itself
+     */
     BasicString<Ch> &Prepend(const BasicString<Ch> &other) noexcept {
         if (mode_ == StringMode::Null) {
             new(this)BasicString<Ch>(other);
@@ -958,6 +1044,16 @@ public:
         return *this;
     }
 
+    /**
+     * Add a string object by indicated length at the beginning of string.\n
+     * If the length is larger than its real length, it'll be detected.
+     * @param other another object
+     * @param length indicated length
+     * @param otherOffset characters that'll be skipped behind the head of data.
+     * @param currentFrontOffset reserved data before added characters.
+     * @param currentBackOffset reserved data behind added characters.
+     * @return
+     */
     BasicString<Ch> &Prepend(const BasicString<Ch> &other, SizeType length, SizeType otherOffset = 0,
                              SizeType currentFrontOffset = 0, SizeType currentBackOffset = 0) {
         if (length == other.GetLength()) {
@@ -1004,6 +1100,30 @@ public:
         return BasicString<Ch>::Insert(index, other.GetConstData(), other.GetLength(), 0, 0);
     }
 
+    BasicString<Ch> &Reverse() {
+        switch (mode_) {
+            case StringMode::SmallString:
+                CharTrait<Ch>::Reverse(sso_);
+                break;
+            case StringMode::NeedAllocate: {
+                if (*buf_.buf_ && (**buf_.buf_).GetValue() > 1) {
+                    Ch *oldStr = buf_.str_;
+                    (**buf_.buf_).DecrementRef();
+                    Ch *newStr = BasicString<Ch>::Initialize(buf_.len_, true);
+                    for (SizeType index = 0; index < buf_.len_; ++index) {
+                        newStr[index] = oldStr[buf_.len_ - 1 - index];
+                    }
+                } else{
+                    CharTrait<Ch>::Reverse(buf_.str_);
+                }
+                break;
+            }
+            default:
+                assert(false);
+        }
+        return *this; /** @bug I forgot to write this OwO. */
+    }
+
     BasicString<Ch> Left(const SizeType &left) const noexcept {
         if (left >= BasicString<Ch>::GetLength()) {
             return (*this);
@@ -1026,6 +1146,7 @@ public:
         }
         return Self(BasicString<Ch>::GetConstData() + index, count);
     }
+
 };
 
 using StringA = BasicString<char>;

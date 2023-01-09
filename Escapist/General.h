@@ -46,7 +46,7 @@ using Char = char;
 using SizeType = unsigned int;
 #endif
 
-//#include <winsock2.h>
+#include <winsock2.h>
 #include <windows.h>
 #include <cassert>
 

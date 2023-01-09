@@ -21,4 +21,5 @@ int main() {
     std::wcout << str.GetLength() << std::endl;
     std::wcout << str.GetCapacity() << std::endl;
     std::wcout << wcslen(str.GetConstData()) << std::endl;
+    std::wcout << String (L"12312390890890899080890123").Reverse().GetConstData();
 }

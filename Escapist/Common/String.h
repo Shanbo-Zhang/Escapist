@@ -928,7 +928,7 @@ public:
     BasicString<Ch> &Prepend(const Ch &ch, SizeType count = 1,
                              SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
         if (ch && count) {
-            if (Ch *pos = BasicString<Ch>::GrowthPrepend(frontOffset + count + backOffset);) {
+            if (Ch *pos = BasicString<Ch>::GrowthPrepend(frontOffset + count + backOffset)) {
                 CharTrait<Ch>::Fill(pos + frontOffset, ch, count);
             }
         }

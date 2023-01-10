@@ -180,7 +180,7 @@ public:
                 result.Append(L',');
             }
         }
-        return result.Prepend('{').Append(L'}');
+        return (String&&)result.Prepend('{').Append(L'}');
     }
 };
 

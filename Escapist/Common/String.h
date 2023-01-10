@@ -75,19 +75,19 @@ public:
         return *left - *right;
     }
 
-    static SizeType IndexOf(const Char *data, const Char &ch) {
+    static Ch *IndexOf(const Char *data, const Char &ch) {
 
     }
 
-    static SizeType IndexOf(const Char *data, const Char *target) {
+    static Ch *IndexOf(const Char *data, const Char *target) {
 
     }
 
-    static SizeType LastIndexOf(const Char *data, const Char &ch) {
+    static Ch *LastIndexOf(const Char *data, const Char &ch) {
 
     }
 
-    static SizeType LastIndexOf(const Char *data, const Char *target) {
+    static Ch *LastIndexOf(const Char *data, const Char *target) {
 
     }
 
@@ -155,19 +155,19 @@ public:
         return ::strlen(src);
     }
 
-    static inline const char *IndexOf(const char *data, const char &ch) {
+    static inline char *IndexOf(const char *data, const char &ch) {
         return ::strchr(data, ch);
     }
 
-    static inline const char *IndexOf(const char *data, const char *target) {
+    static inline char *IndexOf(const char *data, const char *target) {
         return ::strstr(data, target);
     }
 
-    static inline const char *LastIndexOf(const char *data, const char &ch) {
+    static inline char *LastIndexOf(const char *data, const char &ch) {
         return ::strrchr(data, ch);
     }
 
-    static inline const char *LastIndexOf(const char *data, const char *target) {
+    static inline char *LastIndexOf(const char *data, const char *target) {
         if (data && target) {
             const char *dataPos = data;
             const char *targetPos = target;
@@ -185,7 +185,7 @@ public:
                 targetPos = target;
                 ++dataPos;
             }
-            return lastPos;
+            return const_cast<char *>(lastPos);
         }
         return nullptr;
     }
@@ -256,19 +256,19 @@ public:
         return ::wcslen(src);
     }
 
-    static inline const wchar_t *IndexOf(const wchar_t *data, const wchar_t &ch) {
+    static inline wchar_t *IndexOf(const wchar_t *data, const wchar_t &ch) {
         return ::wcschr(data, ch);
     }
 
-    static inline const wchar_t *IndexOf(const wchar_t *data, const wchar_t *target) {
+    static inline wchar_t *IndexOf(const wchar_t *data, const wchar_t *target) {
         return ::wcsstr(data, target);
     }
 
-    static inline const wchar_t *LastIndexOf(const wchar_t *data, const wchar_t &ch) {
+    static inline wchar_t *LastIndexOf(const wchar_t *data, const wchar_t &ch) {
         return ::wcsrchr(data, ch);
     }
 
-    static inline const wchar_t *LastIndexOf(const wchar_t *data, const wchar_t *target) {
+    static inline wchar_t *LastIndexOf(const wchar_t *data, const wchar_t *target) {
         if (data && target) {
             const wchar_t *dataPos = data;
             const wchar_t *targetPos = target;
@@ -286,7 +286,7 @@ public:
                 targetPos = target;
                 ++dataPos;
             }
-            return lastPos;
+            return const_cast<wchar_t *>(lastPos);
         }
         return nullptr;
     }
@@ -732,6 +732,10 @@ public:
         }
     }
 
+    BasicString(BasicString<Ch> &&other) noexcept: mode_(other.mode_), buf_(other.buf_) {
+        ::memset(&other, 0, sizeof(BasicString<Ch>));
+    }
+
     /**
      * Initialize constructor by another object.
      * @date January 8th 2023
@@ -748,6 +752,20 @@ public:
         } else {
             new(this)BasicString<Ch>(other.GetConstData() + otherFrontOffset, length,
                                      currentFrontOffset, currentBackOffset);
+        }
+    }
+
+    ~BasicString() noexcept {
+        if (mode_ == StringMode::NeedAllocate) {
+            if (*buf_.buf_) {
+                if ((**buf_.buf_).GetValue() > 1) {
+                    (**buf_.buf_).DecrementRef();
+                    return;
+                } else {
+                    ::free((void *) *buf_.buf_);
+                }
+            }
+            ::free((void *) buf_.buf_);
         }
     }
 
@@ -842,6 +860,45 @@ public:
         }
     }
 
+    Ch &GetAt(SizeType index) {
+        switch (mode_) {
+            case StringMode::SmallString:
+                assert(index < BasicString<Ch>::SmallStringLengthIndex);
+                return sso_[index];
+            case StringMode::NeedAllocate:
+                assert(index < buf_.len_);
+                if (*buf_.buf_ && (**buf_.buf_).GetValue() > 1) {
+                    Ch *oldData = buf_.str_;
+                    (**buf_.buf_).DecrementRef();
+                    CharTrait<Ch>::Copy(
+                            BasicString<Ch>::Initialize(buf_.len_, true),
+                            oldData,
+                            buf_.len_
+                    );
+                }
+                return buf_.str_[index];
+            case StringMode::DirectCopy:
+                assert(index < buf_.len_);
+                return buf_.str_[index];
+            default:
+                assert(false);
+        }
+    }
+
+    const Ch &GetConstAt(SizeType index) const {
+        switch (mode_) {
+            case StringMode::SmallString:
+                assert(index < BasicString<Ch>::SmallStringLengthIndex);
+                return sso_[index];
+            case StringMode::NeedAllocate:
+            case StringMode::DirectCopy:
+                assert(index < buf_.len_);
+                return buf_.str_[index];
+            default:
+                assert(false);
+        }
+    }
+
     /**
      * return the string content pointer\n
      * Different from GetConstData, if it's sharing with another string, it'll detach from shared object.
@@ -891,6 +948,46 @@ public:
                 break;
         }
         assert(false);
+    }
+
+    SizeType IndexOf(const Ch &ch, SizeType from = 0) const noexcept {
+        if (const Ch *curr = BasicString<Ch>::GetConstData()) {
+            Ch *target = CharTrait<Ch>::IndexOf(curr + from, ch);
+            return target ? target - curr : -1;
+        }
+        return -1;
+    }
+
+    SizeType IndexOf(const Ch *str, SizeType from = 0) const noexcept {
+        if (const Ch *curr = BasicString<Ch>::GetConstData()) {
+            Ch *target = CharTrait<Ch>::IndexOf(curr + from, str);
+            return target ? target - curr : -1;
+        }
+        return -1;
+    }
+
+    SizeType IndexOf(const BasicString<Ch> &other, SizeType from = 0) const noexcept {
+        return BasicString<Ch>::IndexOf(other.GetConstData(), from);
+    }
+
+    SizeType LastIndexOf(const Ch &ch, SizeType from = 0) const noexcept {
+        if (const Ch *curr = BasicString<Ch>::GetConstData()) {
+            Ch *target = CharTrait<Ch>::LastIndexOf(curr + from, ch);
+            return target ? target - curr : -1;
+        }
+        return -1;
+    }
+
+    SizeType LastIndexOf(const Ch *str, SizeType from = 0) const noexcept {
+        if (const Ch *curr = BasicString<Ch>::GetConstData()) {
+            Ch *target = CharTrait<Ch>::LastIndexOf(curr + from, str);
+            return target ? target - curr : -1;
+        }
+        return -1;
+    }
+
+    SizeType LastIndexOf(const BasicString<Ch> &other, SizeType from = 0) const noexcept {
+        return BasicString<Ch>::LastIndexOf(other.GetConstData(), from);
     }
 
     /**
@@ -1113,7 +1210,7 @@ public:
                     for (SizeType index = 0; index < buf_.len_; ++index) {
                         newStr[index] = oldStr[buf_.len_ - 1 - index];
                     }
-                } else{
+                } else {
                     CharTrait<Ch>::Reverse(buf_.str_);
                 }
                 break;
@@ -1128,7 +1225,7 @@ public:
         if (left >= BasicString<Ch>::GetLength()) {
             return (*this);
         } else {
-            return Self(BasicString<Ch>::GetConstData(), left);
+            return BasicString<Ch>(BasicString<Ch>::GetConstData(), left);
         }
     }
 
@@ -1136,7 +1233,7 @@ public:
         if (right >= BasicString<Ch>::GetLength()) {
             return *this;
         } else {
-            return Self(BasicString<Ch>::GetConstData() + BasicString<Ch>::GetLength() - right, right);
+            return BasicString<Ch>(BasicString<Ch>::GetConstData() + BasicString<Ch>::GetLength() - right, right);
         }
     }
 
@@ -1144,7 +1241,7 @@ public:
         if (index + count > BasicString<Ch>::GetLength()) {
             return *this;
         }
-        return Self(BasicString<Ch>::GetConstData() + index, count);
+        return BasicString<Ch>(BasicString<Ch>::GetConstData() + index, count);
     }
 
 };

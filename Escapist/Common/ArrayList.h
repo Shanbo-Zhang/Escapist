@@ -19,7 +19,7 @@
  */
 template<typename T>
 class ArrayList {
-    static_assert(std::is_trivially_copy_constructible<T>::value, "T must be copy constructible!");
+    static_assert(std::is_nothrow_copy_constructible<T>::value, "T must be copy constructible!");
 
     using ReferenceCount = EscapistPrivate::ReferenceCount;
     using TypeTrait = typename EscapistPrivate::TypeTraitPatternSelector<T>::TypeTrait;

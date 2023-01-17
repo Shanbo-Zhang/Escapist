@@ -66,6 +66,7 @@ public:
         ::memcpy(&addr.sin_addr.S_un.S_addr, ipAddress, 4);
         assert(::sendto(hSock, (const char *) data, size, 0, (sockaddr *) &addr, sizeof(sockaddr_in))
                != SOCKET_ERROR);
+        return *this;
     }
 };
 

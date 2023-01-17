@@ -40,6 +40,7 @@ using Handle = void *;
 using Char = wchar_t;
 using SizeType = unsigned long long;
 
+#define _UNICODE
 #define UNICODE
 #elif defined(ESCAPIST_32BITS)
 using Char = char;
@@ -48,6 +49,7 @@ using SizeType = unsigned int;
 
 #include <winsock2.h>
 #include <windows.h>
+#include <commctrl.h>
 #include <cassert>
 
 #endif

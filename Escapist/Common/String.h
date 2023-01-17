@@ -656,12 +656,66 @@ private:
         return nullptr;
     }
 
+    Ch *AssignImpl(SizeType newLen) {
+        if (newLen) {
+            switch (mode_) {
+                case StringMode::Null:
+                case StringMode::DirectCopy:
+                    return BasicString<Ch>::Initialize(newLen, true);
+                case StringMode::SmallString: {
+                    SizeType oldLen = BasicString<Ch>::GetSmallLength();
+                    if (newLen < BasicString<Ch>::SmallStringCapacity) {
+                        BasicString<Ch>::SetSmallLength(newLen, true);
+                        return sso_;
+                    } else {
+                        Ch oldStr[BasicString<Ch>::SmallStringCapacity];
+                        CharTrait<Ch>::Copy(oldStr, sso_, oldLen);
+                        BasicString<Ch>::InitEager(newLen, true);
+                        return buf_.str_; // we'll operate in heap.
+                    }
+                }
+                case StringMode::NeedAllocate: {
+                    if (*buf_.buf_ && (**buf_.buf_).GetValue() > 1) {
+                        (**buf_.buf_).DecrementRef();
+                        return BasicString<Ch>::Initialize(newLen, true);;
+                    } else {
+                        buf_.len_ = newLen;
+                        if (buf_.len_ >= buf_.capacity_) {
+                            ReferenceCount **oldBuf = buf_.buf_;
+                            SizeType oldCapacity = buf_.capacity_;
+                            buf_.capacity_ = buf_.len_ * (long double) 1.5;
+                            if (buf_.capacity_ - oldCapacity > oldCapacity * 2) {
+                                BasicString<Ch>::InitEager(buf_.len_, true);
+                                ::free((void *) oldBuf);
+                            } else {
+                                ReferenceCount *oldRef = *buf_.buf_;
+                                buf_.buf_ = (ReferenceCount **) ::realloc(buf_.buf_,
+                                                                          BasicString<Ch>::TotalCapacity(
+                                                                                  buf_.capacity_));
+                                if (buf_.buf_ != oldBuf) {
+                                    *buf_.buf_ = oldRef;
+                                    buf_.str_ = (Ch *) (buf_.buf_ + 1);
+                                }
+                            }
+                        }
+                        // We don't need to do anything if the capacity is large enough.
+                        buf_.str_[buf_.len_] = Ch(0); // Set 0 for new length
+                        return buf_.str_;
+                    }
+                }
+                default:
+                    assert(false);
+            }
+        }
+    }
+
 public:
     /**
      * Default Constructor, the string is null.
      * @date January 8th 2023
      */
-    BasicString() noexcept: mode_(StringMode::Null) {}
+    BasicString()
+    noexcept: mode_(StringMode::Null) {}
 
     /**
      * Initialize the string by an indicated character and count.\n
@@ -672,7 +726,8 @@ public:
      * @param frontOffset reserved space before assignment
      * @param backOffset reserved space behind assignment
      */
-    explicit BasicString(const Ch &ch, SizeType count = 1, SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+    explicit BasicString(const Ch &ch, SizeType count = 1, SizeType frontOffset = 0,
+                         SizeType backOffset = 0) noexcept {
         if (ch && count) { // Check if we need to use the memory.
             CharTrait<Ch>::Fill(
                     BasicString<Ch>::Initialize(frontOffset + count + backOffset, true) + frontOffset,
@@ -693,7 +748,11 @@ public:
      * @param frontOffset reserved space before assignment
      * @param backOffset reserved space behind assignment
      */
-    BasicString(const Ch *str, SizeType length, SizeType frontOffset = 0, SizeType backOffset = 0) noexcept {
+    BasicString(
+            const Ch *str, SizeType
+    length, SizeType
+            frontOffset = 0, SizeType
+            backOffset = 0) noexcept {
         if (str && length) { // Check if we need to use the memory.
             CharTrait<Ch>::Copy(
                     BasicString<Ch>::Initialize(frontOffset + length + backOffset, true) + frontOffset,
@@ -721,7 +780,8 @@ public:
      * @date January 8th 2023
      * @param other another string object
      */
-    BasicString(const BasicString<Ch> &other) noexcept: mode_(other.mode_), buf_(other.buf_) { // Copy at first
+    BasicString(
+            const BasicString<Ch> &other) noexcept: mode_(other.mode_), buf_(other.buf_) { // Copy at first
         if (mode_ == StringMode::NeedAllocate) { // we need to change something in this mode.
             if (*buf_.buf_) { // We copy it directly, but we need to increase the reference count if it has.
                 (**buf_.buf_).IncrementRef();
@@ -732,7 +792,8 @@ public:
         }
     }
 
-    BasicString(BasicString<Ch> &&other) noexcept: mode_(other.mode_), buf_(other.buf_) {
+    BasicString(BasicString<Ch> &&other)
+    noexcept: mode_(other.mode_), buf_(other.buf_) {
         ::memset(&other, 0, sizeof(BasicString<Ch>));
     }
 
@@ -745,8 +806,13 @@ public:
      * @param currentFrontOffset reserved space before assignment
      * @param currentBackOffset reserved space behind assignment
      */
-    BasicString(const BasicString<Ch> &other, SizeType length, SizeType, SizeType otherFrontOffset = 0,
-                SizeType currentFrontOffset = 0, SizeType currentBackOffset = 0) noexcept {
+    BasicString(
+            const BasicString<Ch> &other, SizeType
+    length, SizeType, SizeType
+            otherFrontOffset = 0,
+            SizeType
+            currentFrontOffset = 0, SizeType
+            currentBackOffset = 0) noexcept {
         if (!currentFrontOffset && !currentBackOffset && !otherFrontOffset && length == other.GetLength()) {
             new(this)BasicString<Ch>(other);
         } else {
@@ -755,7 +821,8 @@ public:
         }
     }
 
-    ~BasicString() noexcept {
+    ~BasicString()
+    noexcept {
         if (mode_ == StringMode::NeedAllocate) {
             if (*buf_.buf_) {
                 if ((**buf_.buf_).GetValue() > 1) {
@@ -860,7 +927,8 @@ public:
         }
     }
 
-    Ch &GetAt(SizeType index) {
+    Ch &GetAt(SizeType
+              index) {
         switch (mode_) {
             case StringMode::SmallString:
                 assert(index < BasicString<Ch>::SmallStringLengthIndex);
@@ -885,7 +953,8 @@ public:
         }
     }
 
-    const Ch &GetConstAt(SizeType index) const {
+    const Ch &GetConstAt(SizeType
+                         index) const {
         switch (mode_) {
             case StringMode::SmallString:
                 assert(index < BasicString<Ch>::SmallStringLengthIndex);
@@ -1184,7 +1253,6 @@ public:
     BasicString<Ch> &Insert(SizeType index, const BasicString<Ch> &other, SizeType length, SizeType otherOffset = 0,
                             SizeType currentFrontOffset = 0, SizeType currentBackOffset = 0) {
         assert(index < BasicString<Ch>::GetLength());
-
         return BasicString<Ch>::Insert(index, other.GetConstData() + otherOffset, length,
                                        currentFrontOffset, currentBackOffset);
     }
@@ -1219,6 +1287,51 @@ public:
                 assert(false);
         }
         return *this; /** @bug I forgot to write this OwO. */
+    }
+
+    BasicString<Ch> &Assign(const Ch &ch, const SizeType &count, const SizeType &offset = 0) noexcept {
+        if (ch && count) {
+            if (Ch *target = BasicString<Ch>::AssignImpl(count + offset)) {
+                CharTrait<Ch>::Fill(target + offset, ch, count);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Assign(const Ch *str, const SizeType &length, const SizeType &offset = 0) noexcept {
+        if (str && length) {
+            if (Ch *target = BasicString<Ch>::AssignImpl(length + offset)) {
+                CharTrait<Ch>::Copy(target + offset, str, length);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Assign(const Ch *str) noexcept {
+        return BasicString<Ch>::Assign(str, CharTrait<Ch>::GetLength(str), 0);
+    }
+
+    BasicString<Ch> &Assign(const BasicString<Ch> &other) noexcept {
+        if (buf_.str_ && buf_.len_) {
+            if (Ch *target = BasicString<Ch>::AssignImpl(other.GetLength())) {
+                CharTrait<Ch>::Copy(target, other.buf_.str_, other.buf_.len_);
+            }
+        } else {
+            new(this)BasicString<Ch>(other);
+        }
+    }
+
+    BasicString<Ch> &Assign(const BasicString<Ch> &other, const SizeType &length, const SizeType &dataOffset = 0,
+                            const SizeType &currentOffset = 0) noexcept {
+        if (other.mode != StringMode::Null) {
+            if (!dataOffset && !currentOffset && length == other.buf.len) {
+                return BasicString<Ch>::Assign(other);
+            } else {
+                return BasicString<Ch>::Assign(other.GetConstData() + dataOffset, length, currentOffset);
+            }
+        } else {
+            new(this)BasicString();
+        }
     }
 
     BasicString<Ch> Left(const SizeType &left) const noexcept {

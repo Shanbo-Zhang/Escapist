@@ -8,17 +8,56 @@
 #include "Escapist/Common/Socket.h"
 #include "Escapist/Common/HashMap.h"
 #include "Escapist/Common/Time.h"
+#include "Escapist/GUI/Application.h"
+#include "Escapist/GUI/Window.h"
+#include "Escapist/GUI/PushButton.h"
 #include <string>
 
-int Main(int argc, Char **argv) {
-    MessageBox(0, L"First Application", L"Congrats!", MB_OK);
-    return 0;
-}
+class ExampleWindow : public Window {
+public:
+    bool OnCreate() override {
+        //::MessageBox(nullptr, L"Example Window", L"Example", MB_OK);
+        return true;
+    }
 
-int main() {
-    // 1010100011111001100011011001
-    int integer = 177182937;
-    std::cout << (integer << 1);
+    bool OnDestroy() override {
+        Application::Instance()->Quit(0);
+        return true;
+    }
+};
+
+class ExampleButton : public PushButton {
+    bool OnClick() override {
+        ::MessageBox(nullptr, L"Button is clicked", L"Notification", MB_OK);
+        return false;
+    }
+
+    bool OnDoubleClick() override {
+        ::MessageBox(nullptr, L"Button is double clicked", L"Notification", MB_OK);
+        return false;
+    }
+};
+
+int Main(int argc, Char **argv) {
+    Application a(L"Example Application", argc, argv);
+    ExampleWindow window;
+    window.SetRect(
+            Rect().SetLeft(200).SetTop(200)
+                    .SetWidth(750).SetHeight(500));
+    window.SetBackgroundColor(255, 255, 255);
+    window.Create(TEXT("123123"), Flag<WindowStyle>(WindowStyle::DefaultStyle));
+
+    ExampleButton btn;
+    btn.SetRect(Rect().SetLeft(8).SetTop(8).SetWidth(200).SetHeight(30));
+    btn.Create(
+            L"Example Button",
+            Flag<PushButton::TextAlignment>(PushButton::TextAlignment::HCenter)
+                    .AddFlag(PushButton::TextAlignment::VCenter),
+            &window
+    );
+
+    window.Show();
+    return a.Execute();
 }
 
 /*

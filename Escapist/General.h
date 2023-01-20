@@ -5,6 +5,8 @@
 #ifndef ESCAPIST_GENERAL_H
 #define ESCAPIST_GENERAL_H
 
+#include <cassert>
+
 // Platform detection.
 
 #if defined(WIN32) | defined(_WIN32) | defined(__WIN32__)
@@ -47,10 +49,11 @@ using Char = char;
 using SizeType = unsigned int;
 #endif
 
-#include <winsock2.h>
-#include <windows.h>
-#include <commctrl.h>
-#include <cassert>
+#include <WinSock2.h>
+#include <Windows.h>
+#include <CommCtrl.h>
+#pragma comment(lib,"comctl32.lib")
+#pragma comment(lib,"ws2_32.lib")
 
 #endif
 

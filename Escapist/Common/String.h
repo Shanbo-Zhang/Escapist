@@ -155,15 +155,15 @@ public:
         return ::strlen(src);
     }
 
-    static inline char *IndexOf(const char *data, const char &ch) {
+    static inline const char *IndexOf(const char *data, const char &ch) {
         return ::strchr(data, ch);
     }
 
-    static inline char *IndexOf(const char *data, const char *target) {
+    static inline const char *IndexOf(const char *data, const char *target) {
         return ::strstr(data, target);
     }
 
-    static inline char *LastIndexOf(const char *data, const char &ch) {
+    static inline const char *LastIndexOf(const char *data, const char &ch) {
         return ::strrchr(data, ch);
     }
 
@@ -256,19 +256,19 @@ public:
         return ::wcslen(src);
     }
 
-    static inline wchar_t *IndexOf(const wchar_t *data, const wchar_t &ch) {
+    static inline const wchar_t *IndexOf(const wchar_t *data, const wchar_t &ch) {
         return ::wcschr(data, ch);
     }
 
-    static inline wchar_t *IndexOf(const wchar_t *data, const wchar_t *target) {
+    static inline const wchar_t *IndexOf(const wchar_t *data, const wchar_t *target) {
         return ::wcsstr(data, target);
     }
 
-    static inline wchar_t *LastIndexOf(const wchar_t *data, const wchar_t &ch) {
+    static inline const wchar_t *LastIndexOf(const wchar_t *data, const wchar_t &ch) {
         return ::wcsrchr(data, ch);
     }
 
-    static inline wchar_t *LastIndexOf(const wchar_t *data, const wchar_t *target) {
+    static inline const wchar_t *LastIndexOf(const wchar_t *data, const wchar_t *target) {
         if (data && target) {
             const wchar_t *dataPos = data;
             const wchar_t *targetPos = target;

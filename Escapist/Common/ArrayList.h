@@ -499,6 +499,34 @@ public:
         return *this;
     }
 
+    SizeType IndexOf(const T &target, SizeType ignoreCount = 0) const noexcept {
+        if (data_ && size_) {
+            return -1;
+        }
+        for (SizeType index = ignoreCount; index < size_; ++index) {
+            if (TypeTrait::Equals(data_[index], target)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    SizeType LastIndexOf(const T &target, SizeType ignoreCount = 0) const noexcept {
+        if (data_ && size_) {
+            return -1;
+        }
+        for (SizeType index = size_ - ignoreCount - 1; index > 0; --index) {
+            if (TypeTrait::Equals(data_[index], target)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    bool Contains(const T &target) const {
+        return ArrayList<T>::IndexOf(target);
+    }
+
     ArrayList<T> &Append(const T &value, SizeType count = 1, SizeType offset = 0) noexcept {
         if (count) {
             TypeTrait::Fill(ArrayList<T>::GrowthAppend(offset + count) + offset, value, count);
@@ -612,7 +640,7 @@ public:
         return *this;
     }
 
-    ArrayList<T> &Delete(SizeType index, SizeType count, bool copyTo = false) noexcept {
+    ArrayList<T> &Remove(SizeType index, SizeType count, bool copyTo = false) noexcept {
         if (index < size_ && count) {
             if (buf_ && *buf_ && (**buf_).GetValue() > 1) {
                 T *oldData = data_;
@@ -627,7 +655,10 @@ public:
             size_ -= count;
         }
         return *this;
+        // TODO: copyTo parameter
     }
+
+    // TODO: Remove(const T& value)
 
     ArrayList<T> &Assign(const T &value, SizeType count, SizeType offset = 0) noexcept {
         ArrayList<T>::AssignReset(count + offset);
@@ -656,7 +687,7 @@ public:
     }
 
     ArrayList<T> &Assign(const ArrayList<T> &other, SizeType size,
-                         SizeType otherOffset=0, SizeType currentOffset=0) noexcept {
+                         SizeType otherOffset = 0, SizeType currentOffset = 0) noexcept {
         if (size) {
             if (size == other.size_ && !otherOffset && !currentOffset) {
                 return ArrayList<T>::Assign(other);

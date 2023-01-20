@@ -28,6 +28,10 @@ public:
         }
     }
 
+    static bool Equals(const T &left, const T &right) noexcept {
+        return left == right;
+    }
+
     static void Destroy(T *dest) noexcept {
         dest->~T();
     }
@@ -56,6 +60,10 @@ namespace EscapistPrivate {
             for (; count > 0; --count, ++dest) {
                 ::memcpy((void *) dest, (const void *) &value, sizeof(T));
             }
+        }
+
+        static bool Equals(const T &left, const T &right) noexcept {
+            return left == right;
         }
 
         static void Destroy(T *dest) noexcept {}
@@ -87,6 +95,10 @@ namespace EscapistPrivate {
         static void Fill(T *dest, const T &val, SizeType count) noexcept {
             for (; count > 0; --count, ++dest)
                 new(dest)T(val);
+        }
+
+        static bool Equals(const T &left, const T &right) noexcept {
+            return left == right;
         }
 
         static void Destroy(T *dest) noexcept {}

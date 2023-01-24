@@ -500,7 +500,7 @@ public:
     }
 
     SizeType IndexOf(const T &target, SizeType ignoreCount = 0) const noexcept {
-        if (data_ && size_) {
+        if (!data_ || !size_) {
             return -1;
         }
         for (SizeType index = ignoreCount; index < size_; ++index) {
@@ -512,7 +512,7 @@ public:
     }
 
     SizeType LastIndexOf(const T &target, SizeType ignoreCount = 0) const noexcept {
-        if (data_ && size_) {
+        if (!data_ || !size_) {
             return -1;
         }
         for (SizeType index = size_ - ignoreCount - 1; index > 0; --index) {

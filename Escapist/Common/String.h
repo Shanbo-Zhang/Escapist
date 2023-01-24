@@ -792,8 +792,7 @@ public:
         }
     }
 
-    BasicString(BasicString<Ch> &&other)
-    noexcept: mode_(other.mode_), buf_(other.buf_) {
+    BasicString(BasicString<Ch> &&other) noexcept: mode_(other.mode_), buf_(other.buf_) {
         ::memset(&other, 0, sizeof(BasicString<Ch>));
     }
 

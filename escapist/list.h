@@ -81,9 +81,23 @@ public:
         }
     }
 
-    List(const List<T> &other, SizeType offset, SizeType size,
-         SizeType front_offset, SizeType back_offset) {
-
+    /**
+     * Creates an instance from parts of the given instance,
+     * starting from the \p first index, and \p size count;
+     * reserves \p front_offset before the first \p val and \p back_offset after the last \p val in the list.
+     * @param other another, given instance
+     * @param first the position starting to be copied
+     * @param size the count of data to be copied
+     * @param front_offset the amount of space the list needs to reserve before the first \p val
+     * @param back_offset the amount of space the list needs to reserve after the last \p val
+     */
+    List(const List<T> &other, SizeType first, SizeType size,
+         SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (size && first + size < other.last_ - other.first_) {
+            new(this)List<T>(other.data_ + from, count, front_offset, back_offset);
+        } else {
+            new(this)List<T>();
+        }
     }
 
     /**

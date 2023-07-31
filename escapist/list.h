@@ -81,6 +81,11 @@ public:
         }
     }
 
+    List(const List<T> &other, SizeType offset, SizeType size,
+         SizeType front_offset, SizeType back_offset) {
+
+    }
+
     /**
      * Decreases the reference count if this instance is sharing memory with other instances;
      * Otherwise, deallocates the associated memory and reference count (if has)

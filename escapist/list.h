@@ -94,7 +94,7 @@ public:
     List(const List<T> &other, SizeType first, SizeType size,
          SizeType front_offset = 0, SizeType back_offset = 0) {
         if (size && first + size < other.last_ - other.first_) {
-            new(this)List<T>(other.data_ + from, count, front_offset, back_offset);
+            new(this)List<T>(other.data_ + first, size, front_offset, back_offset);
         } else {
             new(this)List<T>();
         }
@@ -120,6 +120,101 @@ public:
             ::free(reinterpret_cast<void *>(data_));
         }
     }
+
+    /**
+     * Returns the total amount of elements the instance has.
+     */
+    SizeType Count() const noexcept {
+        return data_ && first_ ? last_ - first_ : 0;
+    }
+
+    /**
+     * Returns the maximum amount of elements the instance can stores currently.
+     */
+    SizeType Capacity() const noexcept {
+        return data_ && first_ ? end_ - first_ : 0;
+    }
+
+    /**
+     * Returns the reference to the element at the specific location \p index
+     * @param index the position of the element
+     * @return the reference to the intended element
+     */
+    T &At(SizeType index) {
+        SizeType count{List<T>::Count()};
+        assert(index < count);
+        if (*data_ && (**data_).Value() > 1) {
+            (**data_).DecrementRef();
+            T *old{first_};
+            TypeTrait::Copy(List<T>::SimpleAllocate(count, nullptr), old, count);
+        }
+        return *(first_ + index);
+    }
+
+    /**
+     * Returns the const reference to the element at the specific location \p index
+     * @param index the position of the element
+     * @return the const reference to the intended element
+     */
+    const T &ConstAt(SizeType index) const {
+        assert(index < List<T>::Count());
+        return *(first_ + index);
+    }
+
+    /**
+     * Replace the element at the specific location \p index to the new given \p val
+     * @param index the position to be replaced.
+     * @param val the new value
+     * @return the reference to the current instance
+     */
+    List<T> &SetAt(SizeType index, const T &val) {
+        SizeType count{List<T>::Count()};
+        assert(index < count);
+        if (*data_ && (**data_).Value() > 1) {
+            (**data_).DecrementRef();
+            T *old{first_};
+            TypeTrait::Copy(List<T>::SimpleAllocate(count, nullptr), old, index);
+            TypeTrait::Assign(first_ + index, val);
+            TypeTrait::Copy(first_ + index + 1, old + index + 1, count - index - 1);
+        } else {
+            TypeTrait::Destroy(first_ + index);
+            TypeTrait::Assign(first_ + index, val);
+        }
+        return *this;
+    }
+
+    /**
+     * Returns the data address
+     */
+    T *Data() noexcept{
+        if (*data_ && (**data_).Value() > 1) {
+            SizeType count{List<T>::Count()};
+            (**data_).DecrementRef();
+            T *old{first_};
+            TypeTrait::Copy(List<T>::SimpleAllocate(count, nullptr), old, count);
+        }
+        return *first_;
+    }
+
+    /**
+     * Returns the const data address
+     */
+    const T *ConstData()const noexcept {
+        return *first_;
+    }
+
+    // TODO: Contains
+
+    // TODO: Clear
+
+    // TODO: EnsureCapacity
+
+    // TODO: Left; Middle; Right
+
+    // TODO: IndexOf; LastIndexOf; NthIndexOf; LastNthIndexOf
+
+    // TODO: Reverse
+
 
 protected:
 

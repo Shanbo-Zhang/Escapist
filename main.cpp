@@ -4,11 +4,10 @@
 #include "escapist/string.h"
 #include "escapist/list.h"
 
-int *A() {
-    int *a = static_cast<int *>(::malloc(sizeof(int)));
-    return (int *&&) a;
-}
-
 int main() {
-    List<int> l(12,10),l2(l);
+    List<int> l(12, 10), l2(l);
+    std::cout << l.SetAt(2,6).ConstAt(1);
+    std::cout << l.SetAt(2,6).ConstAt(2);
+    std::cout << l.SetAt(2,6).ConstAt(3);
+    std::cout << l.SetAt(2,6).ConstAt(4);
 }

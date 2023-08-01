@@ -85,8 +85,39 @@ class Collection {
 };
 
 template<typename T>
-class Iterator {
+class IIterator {
+public:
+    IIterator() = delete;
 
+    explicit IIterator(T *const &pos) : pos_(pos) {}
+
+    IIterator(const IIterator<T> &it) : pos_(it.pos_) {}
+
+    virtual ~IIterator() = default;
+
+    virtual T &Instance() = 0;
+
+    virtual IIterator<T> &Next() const noexcept = 0;
+
+protected:
+    T *pos_;
+};
+
+template<typename T>
+class IConstIterator {
+public:
+    IConstIterator() = delete;
+
+    explicit IConstIterator(T *const &pos) : pos_(pos) {}
+
+    IConstIterator(const IConstIterator<T> &it) : pos_(it.pos_) {}
+
+    virtual ~IConstIterator() = default;
+
+    virtual T &Instance() = 0;
+
+private:
+    T *const &pos_;
 };
 
 #endif //ESCAPIST_BASE_H

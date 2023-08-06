@@ -8,29 +8,29 @@
 #include "internal/type_trait.h"
 
 template<typename T>
-class List : Collection<T> {
+class List {
 public:
     /**
-     * Creates an instance with no elements in the list.
+     * Creates an empty \c List<T> instance
      */
-    List() noexcept: data_(nullptr), first_(nullptr), last_(nullptr), end_(nullptr) {}
+    List() noexcept
+            : data_(nullptr), first_(nullptr), last_(nullptr), end_(nullptr) {}
+
 
     /**
-     * Creates an instance with \p count of \p val;
-     * reserves \p front_offset before the first \p val and \p back_offset after the last \p val in the list.
-     * @param val the value to be put into the list
-     * @param count the amount of \p val the list needs to have
-     * @param front_offset the amount of space the list needs to reserve before the first \p val
-     * @param back_offset the amount of space the list needs to reserve after the last \p val
+     * Creates an List<T> with the given \p value repeating \p count of times.
+     * @param count the count of \p value intended to be plugged in
+     * @param value the given \p value
+     * @param front_offset the amount of spaces intended to reserve before the first \p value
+     * @param back_offset the amount of spaces intended to reserve after the last \p value
      */
-    List(const T &val, SizeType count, SizeType front_offset = 0, SizeType back_offset = 0) {
+    List(SizeType count, const T &value, SizeType front_offset = 0, SizeType back_offset = 0) {
         if (count) {
-            // Preset all pointers in the instance to appropriate addresses;
-            // Reserve enough space for future assignment or copy
-            for (T *pos = List<T>::SimpleAllocate(front_offset + count + front_offset, nullptr) + front_offset;
+            SizeType size = front_offset + count + back_offset;
+            for (T *pos = List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr) + front_offset;
                  count > 0;
                  --count, ++pos) {
-                TypeTrait::Assign(pos, val); // Successively copy the given value to the suitable place.
+                TypeTrait::Assign(pos, value);
             }
         } else {
             new(this)List<T>();
@@ -38,263 +38,297 @@ public:
     }
 
     /**
-     * Creates an instance with the first \p size of some given \p data;
-     * reserves \p front_offset before the first \p val and \p back_offset after the last \p val in the list.
-     * @param data the given data
-     * @param size the amount of \p data to be copied.
-     * @param front_offset the amount of space the list needs to reserve before the first \p val
-     * @param back_offset the amount of space the list needs to reserve after the last \p val
-     * @warning \p size cannot exceed the memory size of \p data.
+     *
+     * @param source
+     * @param count
+     * @param front_offset
+     * @param back_offset
      */
-    List(const T *data, SizeType size, SizeType front_offset = 0, SizeType back_offset = 0) {
-        if (data && size) {
-            // Preset all pointers in the instance to appropriate addresses;
-            // Reserve enough space for future assignment or copy;
-            // Copy the given data to the suitable place.
-            TypeTrait::Copy(
-                    List<T>::SimpleAllocate(front_offset + size + back_offset, nullptr) + front_offset,
-                    data,
-                    size
-            );
+    List(const T *source, SizeType count, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (source && count) {
+            SizeType size = front_offset + count + back_offset;
+            TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr) + front_offset, source, count);
         } else {
             new(this)List<T>();
         }
     }
 
-    /**
-     * Copy Constructor\n
-     * TODO: finish this comment
-     * @param other
-     */
     List(const List<T> &other) noexcept {
-        if (other.data_ && other.first_) {
-            // I don't want to assign them separately -_- emmmm
-            // These two instance (other and this) will associate the same memory address.
-            Internal::PodTypeTrait<List<T>>::Copy(this, &other, 1);
-            if (*data_) {
-                (**data_).IncrementRef();
+        if (&other == this) {
+            return;
+        } else {
+            if (other.data_) {
+                ::memcpy(this, &other, sizeof(List<T>));
+                if (*data_) {
+                    (**data_).IncrementRef();
+                } else {
+                    *data_ = new RefCount(2);
+                }
             } else {
-                *data_ = new List::RefCount{2};
+                new(this)List<T>();
             }
-        } else {
-            new(this)List<T>();
         }
     }
 
-    /**
-     * Creates an instance from parts of the given instance,
-     * starting from the \p first index, and \p size count;
-     * reserves \p front_offset before the first \p val and \p back_offset after the last \p val in the list.
-     * @param other another, given instance
-     * @param first the position starting to be copied
-     * @param size the count of data to be copied
-     * @param front_offset the amount of space the list needs to reserve before the first \p val
-     * @param back_offset the amount of space the list needs to reserve after the last \p val
-     */
-    List(const List<T> &other, SizeType first, SizeType size,
+    List(List<T> &&other) noexcept {
+        if (&other == this) {
+            return;
+        } else {
+            ::memcpy(this, &other, sizeof(List<T>));
+            ::memset(&other, 0, sizeof(List<T>));
+        }
+    }
+
+    List(const List<T> &other, SizeType count, SizeType offset,
          SizeType front_offset = 0, SizeType back_offset = 0) {
-        if (size && first + size < other.last_ - other.first_) {
-            new(this)List<T>(other.data_ + first, size, front_offset, back_offset);
+        if (&other == this) {
+            assert(false);
+        }
+        if (count) {
+            new(this)List<T>(other.first_ + offset, count, front_offset, back_offset);
         } else {
             new(this)List<T>();
         }
     }
 
     /**
-     * Decreases the reference count if this instance is sharing memory with other instances;
-     * Otherwise, deallocates the associated memory and reference count (if has)
+     * Destructs the current instance.
+     * If this instance is sharing with some other instances, then this do nothing,
+     * except decreasing the reference count.
+     * Otherwise, destructor will free the reference count (if has) and the entire
+     * memory associated with this instance.
      */
     ~List() {
-        if (data_ && first_) { // Check if we need to do something
-            if (*data_) { // This instance has associated reference count instance.
-                if ((**data_).Value() > 1) { // This instance is sharing with some other instance
-                    (**data_).DecrementRef();
-                    return; // We don't need to further deallocate them.
-                } else { // Though it has reference count instance, no one is sharing with it.
-                    delete *data_;
+        if (data_) { // check if it needs to do something
+            if (*data_) { // check if it has RC
+                if ((**data_).Value() > 1) { // sharing
+                    (**data_).DecrementRef(); // decrease and quit
+                    return;
                 }
+                delete *data_; // = 1, thus the RC is no longer needed.
             }
-            for (T *each = first_; each != last_; ++each) {
-                TypeTrait::Destroy(each);
+            // We need to free the memory.
+            // To avoid memory leak, we need to run the destructor of every existing element.
+            for (T *pos = first_; pos != end_; ++pos) {
+                TypeTrait::Destroy(pos);
             }
-            ::free(reinterpret_cast<void *>(data_));
+            ::free(static_cast<void *>(data_)); // NO MEMORY LEAK AT ALL!!!!!!
         }
     }
 
-    /**
-     * Returns the total amount of elements the instance has.
-     */
-    SizeType Count() const noexcept {
-        return data_ && first_ ? last_ - first_ : 0;
-    }
-
-    /**
-     * Returns the maximum amount of elements the instance can stores currently.
-     */
-    SizeType Capacity() const noexcept {
-        return data_ && first_ ? end_ - first_ : 0;
-    }
-
-    /**
-     * Returns the reference to the element at the specific location \p index
-     * @param index the position of the element
-     * @return the reference to the intended element
-     */
-    T &At(SizeType index) {
-        SizeType count{List<T>::Count()};
-        assert(index < count);
-        if (*data_ && (**data_).Value() > 1) {
-            (**data_).DecrementRef();
-            T *old{first_};
-            TypeTrait::Copy(List<T>::SimpleAllocate(count, nullptr), old, count);
-        }
-        return *(first_ + index);
-    }
-
-    /**
-     * Returns the const reference to the element at the specific location \p index
-     * @param index the position of the element
-     * @return the const reference to the intended element
-     */
-    const T &ConstAt(SizeType index) const {
-        assert(index < List<T>::Count());
-        return *(first_ + index);
-    }
-
-    /**
-     * Replace the element at the specific location \p index to the new given \p val
-     * @param index the position to be replaced.
-     * @param val the new value
-     * @return the reference to the current instance
-     */
-    List<T> &SetAt(SizeType index, const T &val) {
-        SizeType count{List<T>::Count()};
-        assert(index < count);
-        if (*data_ && (**data_).Value() > 1) {
-            (**data_).DecrementRef();
-            T *old{first_};
-            TypeTrait::Copy(List<T>::SimpleAllocate(count, nullptr), old, index);
-            TypeTrait::Assign(first_ + index, val);
-            TypeTrait::Copy(first_ + index + 1, old + index + 1, count - index - 1);
-        } else {
-            TypeTrait::Destroy(first_ + index);
-            TypeTrait::Assign(first_ + index, val);
-        }
-        return *this;
-    }
-
-    /**
-     * Returns the data address
-     */
-    T *Data() noexcept{
-        if (*data_ && (**data_).Value() > 1) {
-            SizeType count{List<T>::Count()};
-            (**data_).DecrementRef();
-            T *old{first_};
-            TypeTrait::Copy(List<T>::SimpleAllocate(count, nullptr), old, count);
-        }
-        return *first_;
-    }
-
-    /**
-     * Returns the const data address
-     */
-    const T *ConstData()const noexcept {
-        return *first_;
-    }
-
-    // TODO: Contains
-
-    // TODO: Clear
-
-    // TODO: EnsureCapacity
-
-    // TODO: Left; Middle; Right
-
-    // TODO: IndexOf; LastIndexOf; NthIndexOf; LastNthIndexOf
-
-    // TODO: Reverse
-
-
-protected:
-
-private:
-    // List use reference count at first, if the instance will be copied.
-    using RefCount = typename Internal::ReferenceCount;
-
-    // TODO: How this is implemented?
-    using TypeTrait = typename Internal::TypeTraitPatternSelector<T>::Type;
-
-    // If the type is very small, List use maximum capacity to prevent frequent copy-and-paste of small memory.
-    static constexpr SizeType kMaxCapacity = sizeof(T *) * 8 / sizeof(T);
-
-    // If the type is too large to reserve, this is false.
-    static constexpr bool kHaveMaxCapacity = kMaxCapacity;
-
-    static RefCount **TryAllocate(const SizeType &capacity) {
-        if (capacity) {
-            RefCount **data = reinterpret_cast<RefCount **>(
-                    ::malloc(sizeof(RefCount *) + capacity * sizeof(T))
-            );
-            assert(data);
-            return data;
-        }
-        return nullptr;
-    }
-
-    static RefCount **TryReallocate(RefCount **data, const SizeType &capacity) {
-        if (data && capacity) {
-            RefCount **data = reinterpret_cast<RefCount **>(
-                    ::realloc(data, sizeof(RefCount *) + capacity * sizeof(T))
-            );
-            assert(data);
-            return data;
-        }
-        return nullptr;
-    }
-
-    /**
-     * Calculates the required capacity based on different given \p size.
-     * @param size the given size.
-     * @return result capacity
-     */
-    static constexpr SizeType Capacity(const SizeType &size) {
-        if (size) {
-            if (kHaveMaxCapacity && kMaxCapacity < size) {
-                return kMaxCapacity;
-            } else {
-                return SizeType(size * 1.5);
+    T *Data() {
+        if (data_) {
+            if ((*data_) && (**data_).Value() > 1) {
+                T *old = first_;
+                SizeType size = last_ - first_;
+                (**data_).DecrementRef();
+                TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr), old, size);
             }
-        }
-        return 0;
-    }
-
-    RefCount **data_;
-    T *first_;
-    T *last_;
-    T *end_;
-
-    /**
-     * Allocates memory and assign pointers to appropriate addresses.\n
-     * 1) calculate capacity based on the given \p size;\n
-     * 2) allocate the data;\n
-     * 3) assign the reference count, first, last, end.\n
-     * @param size the intended size
-     * @param rc the given reference count pointer, can be nullptr
-     * @return the allocated data
-     */
-    T *SimpleAllocate(SizeType size, RefCount *const &rc) {
-        if (size) {
-            SizeType capacity = List<T>::Capacity(size);
-            data_ = List<T>::TryAllocate(capacity);
-            *data_ = rc;
-            first_ = (T *) (data_ + 1);
-            last_ = first_ + size;
-            end_ = first_ + capacity;
             return first_;
         }
         return nullptr;
     }
+
+    const T *ConstData() const noexcept {
+        return first_;
+    }
+
+    T &At(SizeType index) {
+        assert(data_);
+        SizeType size = last_ - first_;
+        assert(index < size);
+        if (*data_) {
+            if ((*data_) && (**data_).Value() > 1) {
+                T *old = first_;
+                (**data_).DecrementRef();
+                TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr), old, size);
+            }
+        }
+        return *(first_ + index);
+    }
+
+    const T &ConstAt(SizeType index) const {
+        assert(index < last_ - first_);
+        return *(first_ + index);
+    }
+
+    SizeType Count() const noexcept {
+        return data_ ? last_ - first_ : 0;
+    }
+
+    SizeType Capacity() const noexcept {
+        return data_ ? end_ - first_ : 0;
+    }
+
+    bool IsEmpty() const noexcept {
+        return !(data_ && (last_ == first_));
+    }
+
+    bool IsNull() const noexcept {
+        return !data_;
+    }
+
+    List<T> &Clear() {
+        if (data_) {
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                new(this)List<T>();
+            } else {
+                for (; last_ != first_; --last_) {
+                    TypeTrait::Destroy(last_);
+                }
+            }
+        }
+        return *this;
+    }
+
+    List<T> &EnsureCapacity(SizeType capacity) {
+        if (data_) {
+            if (capacity > end_ - first_) {
+                SizeType size = last_ - first_;
+                if (*data_ && (**data_).Value() > 1) {
+                    T *old = first_;
+                    (**data_).DecrementRef();
+                    TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr), old, size);
+                } else {
+                    List<T>::SimpleReallocate(size, capacity);
+                }
+            }
+        } else {
+            List<T>::SimpleAllocate(0, capacity, nullptr);
+        }
+        return *this;
+    }
+
+    List<T> &Append(const T &value, SizeType count = 1,
+                    SizeType front_offset = 0, SizeType back_offset = 0) noexcept {
+        if (T *pos = List<T>::GrowthAppend(front_offset + count + back_offset) + front_offset) {
+            for (; count > 0; --count, ++pos) {
+                TypeTrait::Assign(pos, value);
+            }
+        }
+        return *this;
+    }
+
+    List<T> &Append() {
+
+    }
+
+public:
+    using TypeTrait = typename Internal::TypeTraitPatternSelector<T>::Type;
+    using RefCount = typename Internal::ReferenceCount;
+
+    /**
+     * Traditionally, the array-like list stores a collection of elements in
+     * contiguous memory. However, as the size grows, it approaches the capacity.
+     * When there does not have any available place to put additional elements,
+     * the list usually find a larger place, copy existing elements, and free the
+     * old memory.
+     * \n
+     * However, if we use the growing factor, when the intended capacity is small,
+     * the size reaches maximum and triggers reallocation frequently, which causes
+     * inefficiency. By using this, we avoid this frequent copy-and-paste when the
+     * memory is small. If the intended capacity is lower than this value, the
+     * capacity will use this instead.
+     */
+    static constexpr SizeType kMinCap = (sizeof(T *) * 8 / sizeof(T));
+
+
+    /**
+     * Calculates the capacity based on the given \p size.
+     * It usually has three cases.
+     *  - 1. the given \p size is 0.
+     *  - 2. the given size is smaller than \p kMinCap.
+     *  - 3. the given size is larger than \p kMinCap
+     * @param size
+     * @return
+     */
+    static constexpr SizeType Cap(SizeType size) {
+        if (size) {
+            if (kMinCap && kMinCap * 0.75 >= size) {
+                return kMinCap;
+            }
+            return size * 1.5;
+        }
+        return 0;
+    }
+
+    /**
+     * Calculates the total amount of bytes using in the instance.
+     * The instances contains sizeof(RefCount*) + \p capacity * sizeof(T)
+     * @param capacity the given capacity
+     * @return the total amount of bytes using in the instance.
+     */
+    static constexpr SizeType TotCap(SizeType capacity) {
+        return sizeof(RefCount *) + capacity * sizeof(T);
+    }
+
+    inline List(RefCount **&data, const T *&first, const T *&last, const T *&end)
+            : data_(data), first_(first), last_(last), end_(end) {}
+
+    inline List(RefCount **data, const SizeType &size, const SizeType &capacity)
+            : data_(data), first_((T *) (data + 1)), last_(first_ + size), end_(first_ + capacity) {}
+
+    /**
+     * Allocates memory for the instance and assigns member variables.
+     * Simple means it does not consider the validity of given value, and existing data.
+     * @return \c first_
+     */
+    T *SimpleAllocate(const SizeType &size, const SizeType &capacity, RefCount *const &rc) {
+        data_ = static_cast<RefCount **>(::malloc(TotCap(capacity)));
+        assert(data_);
+        *data_ = rc;
+        first_ = (T *) (data_ + 1);
+        last_ = first_ + size;
+        end_ = first_ + capacity;
+        return first_;
+    }
+
+    void SimpleReallocate(const SizeType &size, const SizeType &capacity) {
+        RefCount **old = data_;
+        RefCount *old_rc = *data_;
+        data_ = static_cast<RefCount **>(::realloc(data_, TotCap(capacity)));
+        assert(data_);
+        if (old != data_) {
+            *data_ = old_rc;
+            first_ = (T *) (data_ + 1);
+            last_ = first_ + size;
+        }
+        end_ = first_ + capacity;
+    }
+
+    /**
+     * Internal implementation of all Append methods.
+     * Reserves enough space in memory at the end of the existing elements
+     * for further Append operation.
+     * @param count count of elements to be added
+     * @return the address to add new elements, or nullptr if nothing to add
+     */
+    T *GrowthAppend(SizeType count) {
+        if (count) { // Check if we need to do something.
+            if (data_) { // There exists elements, thus detect if we need to detach or expand.
+                SizeType size = last_ - first_, new_size = size + count;
+                if ((*data_) && (**data_).Value()) { // detach?
+                    T *old = first_;
+                    (**data_).DecrementRef();
+                    TypeTrait::Copy(List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr), old, count);
+                } else if (new_size > end_ - first_) { // expand?
+                    List<T>::SimpleReallocate(new_size, List<T>::Cap(new_size));
+                } else { // just reassign size, because we have ENOUGH SPACE!!!
+                    last_ = first_ + new_size;
+                }
+                return first_ + size;
+            } else {
+                return List<T>::SimpleAllocate(count, List<T>::Cap(count), nullptr);
+            }
+        }
+        return nullptr;
+    }
+
+    RefCount **data_; // The first bytes of the memory associated to this instance.
+    T *first_; // The address of the first element.
+    T *last_; // The address of the last element.
+    T *end_; // The address of the end of the memory.
 };
 
 #endif //ESCAPIST_LIST_H

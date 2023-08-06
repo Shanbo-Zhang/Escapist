@@ -210,8 +210,29 @@ public:
         return *this;
     }
 
-    List<T> &Append() {
+    List<T> &Append(const T *source, SizeType count,
+                    SizeType front_offset = 0, SizeType back_offset = 0) noexcept {
+        if (T *pos = List<T>::GrowthAppend(front_offset + count + back_offset) + front_offset) {
+            TypeTrait::Copy(pos, source, count);
+        }
+        return *this;
+    }
 
+    List<T> &Append(const List<T> &other, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (List<T>::IsEmpty() && !front_offset && !back_offset) {
+            new(this)List<T>(other);
+            return *this;
+        } else {
+            return List<T>::Append(other.data_, other.size_, front_offset, back_offset);
+        }
+    }
+
+    List<T> &Append(const List<T> &other, SizeType from, SizeType to,
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (other.data_ && other.size_ && from < to && to < other.size_) {
+            return List<T>::Append(other.data_ + from, to, front_offset, back_offset);
+        }
+        return *this;
     }
 
 public:

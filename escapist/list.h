@@ -10,6 +10,127 @@
 template<typename T>
 class List {
 public:
+    class Iterator {
+    public:
+        Iterator() = delete;
+
+        Iterator(const Iterator &other) noexcept
+                : pos_(other.pos_), index_(other.index_), from_(other.from_) {}
+
+        List<T>::Iterator &operator=(const List<T>::Iterator &other) {
+            if (this == &other) {
+                return *this;
+            }
+            new(this)List<T>::Iterator(other.pos_, other.index_, other.from_);
+        }
+
+        bool operator==(const List<T>::Iterator &other) const noexcept {
+            return from_->data_ == other.from_->data_ && pos_ == other.pos_;
+        }
+
+        bool operator!=(const List<T>::Iterator &other) const noexcept {
+            return !(from_->data_ == other.from_->data_ && pos_ == other.pos_);
+        }
+
+        T &Instance() noexcept {
+            return *pos_;
+        }
+
+        bool HaveNext() const noexcept {
+            return index_ < (from_->end_ - from_->first_);
+        }
+
+        bool HavePrev() const noexcept {
+            return index_ != 0;
+        }
+
+        List<T>::Iterator Next() const {
+            // assert(List<T>::Iterator::HaveNext());
+            return List<T>::Iterator(pos_ + 1, index_ + 1, from_);
+        }
+
+
+        List<T>::Iterator CheckedNext() const {
+            assert(List<T>::Iterator::HaveNext());
+            return List<T>::Iterator(pos_ + 1, index_ + 1, from_);
+        }
+
+        List<T>::Iterator Prev() const {
+            // assert(List<T>::Iterator::HavePrev());
+            return List<T>::Iterator(pos_ - 1, index_ - 1, from_);
+        }
+
+        List<T>::Iterator CheckedPrev() const {
+            assert(List<T>::Iterator::HavePrev());
+            return List<T>::Iterator(pos_ - 1, index_ - 1, from_);
+        }
+
+    private:
+        T *const pos_;
+        const SizeType index_;
+        const List<T> *from_;
+
+        Iterator(T *pos, SizeType index, const List<T> *from)
+                : pos_(pos), index_(index), from_(from) {}
+
+        friend class List<T>;
+    };
+
+    class ConstIterator {
+    public:
+        ConstIterator() = delete;
+
+        ConstIterator(const List<T>::ConstIterator &other) noexcept
+                : pos_(other.pos_), index_(other.index_), from_(other.from_) {}
+
+        List<T>::ConstIterator &operator=(const List<T>::ConstIterator &other) {
+            if (this == &other) {
+                return *this;
+            }
+            new(this)List<T>::ConstIterator(other.pos_, other.index_, other.from_);
+        }
+
+        bool operator==(const List<T>::ConstIterator &other) const noexcept {
+            return from_->data_ == other.from_->data_ && pos_ == other.pos_;
+        }
+
+        bool operator!=(const List<T>::ConstIterator &other) const noexcept {
+            return !(from_->data_ == other.from_->data_ && pos_ == other.pos_);
+        }
+
+        const T &Instance() noexcept {
+            return *pos_;
+        }
+
+        bool HaveNext() const noexcept {
+            return index_ < (from_->last_ - from_->first_);
+        }
+
+        bool HavePrev() const noexcept {
+            return index_ != 0;
+        }
+
+        List<T>::ConstIterator Next() const {
+            assert(List<T>::ConstIterator::HaveNext());
+            return List<T>::ConstIterator(pos_ + 1, index_ + 1, from_);
+        }
+
+        List<T>::ConstIterator Prev() const {
+            assert(List<T>::ConstIterator::HavePrev());
+            return List<T>::ConstIterator(pos_ - 1, index_ - 1, from_);
+        }
+
+    private:
+        const T *const pos_;
+        const SizeType index_;
+        const List<T> *const from_;
+
+        ConstIterator(const T *pos, const SizeType index, const List<T> *from)
+                : pos_(pos), index_(index), from_(from) {}
+
+        friend class List<T>;
+    };
+
     /**
      * Creates an empty \c List<T> instance
      */
@@ -91,6 +212,17 @@ public:
         }
     }
 
+    List(const std::initializer_list<T> i) {
+        if (SizeType s = i.size()) {
+            T *pos = List<T>::SimpleAllocate(i.size(), Cap(i.size()), nullptr);
+            for (auto it = i.begin(); it != i.end(); ++it, ++pos) {
+                TypeTrait::Assign(pos, *it);
+            }
+        } else {
+            new(this)List<T>();
+        }
+    }
+
     /**
      * Destructs the current instance.
      * If this instance is sharing with some other instances, then this do nothing,
@@ -147,9 +279,28 @@ public:
         return *(first_ + index);
     }
 
+    List<T>::Iterator IteratorAt(SizeType index) {
+        assert(data_);
+        SizeType size = last_ - first_;
+        assert(index < size);
+        if (*data_) {
+            if ((*data_) && (**data_).Value() > 1) {
+                T *old = first_;
+                (**data_).DecrementRef();
+                TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr), old, size);
+            }
+        }
+        return List<T>::Iterator(data_ + index, index, this);
+    }
+
     const T &ConstAt(SizeType index) const {
         assert(index < last_ - first_);
         return *(first_ + index);
+    }
+
+    List<T>::ConstIterator ConstIteratorAt(SizeType index) const {
+        assert(index < last_ - first_);
+        return List<T>::ConstIterator(data_ + index, index, this);
     }
 
     SizeType Count() const noexcept {
@@ -166,6 +317,34 @@ public:
 
     bool IsNull() const noexcept {
         return !data_;
+    }
+
+    List<T>::Iterator First() noexcept {
+        if (data_ && (*data_) && (**data_).Value() > 1) {
+            T *old = first_;
+            SizeType size = last_ - first_;
+            (**data_).DecrementRef();
+            TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr), old, size);
+        }
+        return List<T>::Iterator(first_, 0, this);
+    }
+
+    List<T>::ConstIterator ConstFirst() const noexcept {
+        return List<T>::ConstIterator(first_, 0, this);
+    }
+
+    List<T>::Iterator Last() noexcept {
+        SizeType size = last_ - first_;
+        if (data_ && (*data_) && (**data_).Value() > 1) {
+            T *old = first_;
+            (**data_).DecrementRef();
+            TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr), old, size);
+        }
+        return List<T>::Iterator(last_, size, this);
+    }
+
+    List<T>::ConstIterator ConstLast() const noexcept {
+        return List<T>::ConstIterator(last_, List<T>::Count(), this);
     }
 
     List<T> &Clear() {
@@ -200,8 +379,41 @@ public:
         return *this;
     }
 
+    List<T> &Reassign(const T &value, SizeType count = 1,
+                      SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (T *pos = List<T>::AssignImpl(front_offset + count + back_offset) + front_offset) {
+            for (; count > 0; --count, ++pos) {
+                TypeTrait::Assign(pos, value);
+            }
+        }
+        return *this;
+    }
+
+    List<T> &Reassign(const T *data, SizeType count,
+                      SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (T *pos = List<T>::AssignImpl(front_offset + count + back_offset) + front_offset) {
+            TypeTrait::Copy(pos, data, count);
+        }
+        return *this;
+    }
+
+    List<T> &Reassign(const List<T> &other, SizeType count = 1,
+                      SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (data_) {
+            return List<T>::Append(other.data_, other.size_, front_offset, back_offset);
+        }
+    }
+
+    List<T> &Reassign(const List<T> &other, SizeType from, SizeType to,
+                      SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (other.data_ && other.size_ && from < to && to < other.size_) {
+            return List<T>::Append(other.data_ + from, to, front_offset, front_offset);
+        }
+        return *this;
+    }
+
     List<T> &Append(const T &value, SizeType count = 1,
-                    SizeType front_offset = 0, SizeType back_offset = 0) noexcept {
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
         if (T *pos = List<T>::GrowthAppend(front_offset + count + back_offset) + front_offset) {
             for (; count > 0; --count, ++pos) {
                 TypeTrait::Assign(pos, value);
@@ -210,19 +422,17 @@ public:
         return *this;
     }
 
-    List<T> &Append(const T *source, SizeType count,
-                    SizeType front_offset = 0, SizeType back_offset = 0) noexcept {
+    List<T> &Append(const T *data, SizeType count,
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
         if (T *pos = List<T>::GrowthAppend(front_offset + count + back_offset) + front_offset) {
-            TypeTrait::Copy(pos, source, count);
+            TypeTrait::Copy(pos, data, count);
         }
         return *this;
     }
 
-    List<T> &Append(const List<T> &other, SizeType front_offset = 0, SizeType back_offset = 0) {
-        if (List<T>::IsEmpty() && !front_offset && !back_offset) {
-            new(this)List<T>(other);
-            return *this;
-        } else {
+    List<T> &Append(const List<T> &other, SizeType count = 1,
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (data_) {
             return List<T>::Append(other.data_, other.size_, front_offset, back_offset);
         }
     }
@@ -230,7 +440,99 @@ public:
     List<T> &Append(const List<T> &other, SizeType from, SizeType to,
                     SizeType front_offset = 0, SizeType back_offset = 0) {
         if (other.data_ && other.size_ && from < to && to < other.size_) {
-            return List<T>::Append(other.data_ + from, to, front_offset, back_offset);
+            return List<T>::Append(other.data_ + from, to, front_offset, front_offset);
+        }
+        return *this;
+    }
+
+    List<T> &Prepend(const T &value, SizeType count = 1,
+                     SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (T *pos = List<T>::GrowthPrepend(front_offset + count + back_offset) + front_offset) {
+            for (; count > 0; --count, ++pos) {
+                TypeTrait::Assign(pos, value);
+            }
+        }
+        return *this;
+    }
+
+    List<T> &Prepend(const T *data, SizeType count,
+                     SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (T *pos = List<T>::GrowthPrepend(front_offset + count + back_offset) + front_offset) {
+            TypeTrait::Copy(pos, data, count);
+        }
+        return *this;
+    }
+
+    List<T> &Prepend(const List<T> &other, SizeType count = 1,
+                     SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (data_) {
+            return List<T>::Prepend(other.data_, other.size_, front_offset, back_offset);
+        }
+    }
+
+    List<T> &Prepend(const List<T> &other, SizeType from, SizeType to,
+                     SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (other.data_ && other.size_ && from < to && to < other.size_) {
+            return List<T>::Prepend(other.data_ + from, to, front_offset, front_offset);
+        }
+        return *this;
+    }
+
+    List<T> &Insert(SizeType index, const T &value, SizeType count = 1,
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (T *pos = List<T>::GrowthInsert(index, front_offset + count + back_offset) + front_offset) {
+            for (; count > 0; --count, ++pos) {
+                TypeTrait::Assign(pos, value);
+            }
+        }
+        return *this;
+    }
+
+    List<T> &Insert(SizeType index, const T *data, SizeType count,
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (T *pos = List<T>::GrowthInsert(index, front_offset + count + back_offset) + front_offset) {
+            TypeTrait::Copy(pos, data, count);
+        }
+        return *this;
+    }
+
+    List<T> &Insert(SizeType index, const List<T> &other, SizeType count = 1,
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (data_) {
+            return List<T>::Insert(index, other.data_, other.size_, front_offset, back_offset);
+        }
+    }
+
+    List<T> &Insert(SizeType index, const List<T> &other, SizeType from, SizeType to,
+                    SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (other.data_ && other.size_ && from < to && to < other.size_) {
+            return List<T>::Insert(index, other.data_ + from, to, front_offset, front_offset);
+        }
+        return *this;
+    }
+
+    List<T> &Remove(SizeType index, SizeType count = 1) {
+        if (data_) {
+            SizeType old_size = last_ - first_;
+            assert(index + count < old_size);
+            SizeType new_size = old_size - count;
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                T *old = first_;
+                TypeTrait::Copy(
+                        List<T>::SimpleAllocate(new_size, Cap(new_size), nullptr),
+                        old,
+                        index
+                );
+                TypeTrait::Copy(first_ + index, old + index + count, old_size - index);
+            } else {
+                SizeType remain = count;
+                for (T *pos = first_ + index; remain > 0; --remain, ++pos) {
+                    TypeTrait::Destroy(pos);
+                }
+                TypeTrait::Move(first_ + index, first_ + index + count, old_size - index - count);
+                last_ -= count;
+            }
         }
         return *this;
     }
@@ -305,10 +607,11 @@ public:
         return first_;
     }
 
-    void SimpleReallocate(const SizeType &size, const SizeType &capacity) {
+    T *SimpleReallocate(const SizeType &size, const SizeType &capacity) {
+        SizeType i = sizeof(RefCount *) + capacity * sizeof(T);
         RefCount **old = data_;
         RefCount *old_rc = *data_;
-        data_ = static_cast<RefCount **>(::realloc(data_, TotCap(capacity)));
+        data_ = reinterpret_cast<RefCount **>(::realloc(data_, TotCap(capacity)));
         assert(data_);
         if (old != data_) {
             *data_ = old_rc;
@@ -316,34 +619,166 @@ public:
             last_ = first_ + size;
         }
         end_ = first_ + capacity;
+        return first_;
     }
 
-    /**
-     * Internal implementation of all Append methods.
-     * Reserves enough space in memory at the end of the existing elements
-     * for further Append operation.
-     * @param count count of elements to be added
-     * @return the address to add new elements, or nullptr if nothing to add
-     */
     T *GrowthAppend(SizeType count) {
-        if (count) { // Check if we need to do something.
-            if (data_) { // There exists elements, thus detect if we need to detach or expand.
-                SizeType size = last_ - first_, new_size = size + count;
-                if ((*data_) && (**data_).Value()) { // detach?
-                    T *old = first_;
+        if (count) { // check if insertion can occur.
+            if (data_) {
+                SizeType old_size = last_ - first_, new_size = old_size + count;
+                if (*data_ && (**data_).Value() > 1) {
                     (**data_).DecrementRef();
-                    TypeTrait::Copy(List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr), old, count);
-                } else if (new_size > end_ - first_) { // expand?
-                    List<T>::SimpleReallocate(new_size, List<T>::Cap(new_size));
-                } else { // just reassign size, because we have ENOUGH SPACE!!!
-                    last_ = first_ + new_size;
+                    T *old = first_;
+                    TypeTrait::Copy(
+                            List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr),
+                            old,
+                            old_size
+                    );
+                } else {
+                    SizeType old_capacity = end_ - first_;
+                    if (new_size > old_capacity) {
+                        List<T>::SimpleReallocate(new_size, Cap(new_size));
+                    } else {
+                        last_ += count;
+                    }
                 }
-                return first_ + size;
+                return first_ + old_size;
             } else {
-                return List<T>::SimpleAllocate(count, List<T>::Cap(count), nullptr);
+                return List<T>::SimpleAllocate(count, Cap(count), nullptr);
             }
         }
         return nullptr;
+    }
+
+    /**
+     * Reserves \p count of space in the given \p index.
+     * The \p index must be valid.
+     * @param index
+     * @param count
+     * @return the address can be inserted elements, or nullptr of failed.
+     */
+    T *GrowthPrepend(SizeType count) {
+        if (count) {
+            SizeType old_size = last_ - first_, new_size = old_size + count;
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                T *old = first_;
+                TypeTrait::Copy(
+                        List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr) + count,
+                        old,
+                        old_size
+                );
+            } else {
+                SizeType old_capacity = end_ - first_;
+                if (new_size > old_capacity) {
+                    SizeType new_capacity = List<T>::Cap(new_size);
+                    if (new_capacity - old_capacity > old_capacity * 2) {
+                        T *old = first_;
+                        TypeTrait::Copy(
+                                List<T>::SimpleAllocate(new_size, new_capacity, *data_) + count,
+                                old,
+                                old_size
+                        );
+                    } else {
+                        T *pos = List<T>::SimpleReallocate(new_size, new_capacity) + count;
+                        TypeTrait::Move(
+                                pos + count,
+                                first_,
+                                old_size
+                        );
+                    }
+                } else {
+                    TypeTrait::Move(first_ + count, first_, old_size);
+                    last_ += count;
+                }
+            }
+            return first_;
+        }
+        return nullptr;
+    }
+
+    /**
+     * Reserves \p count of space in the given \p index.
+     * The \p index must be valid.
+     * @param index
+     * @param count
+     * @return the address can be inserted elements, or nullptr of failed.
+     */
+    T *GrowthInsert(SizeType index, SizeType count) {
+        if (count && data_) { // check if insertion can occur.
+            SizeType old_size = last_ - first_; // count the size for verifying and future.
+            assert(index < old_size);
+            SizeType new_size = old_size + count;
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                T *old = first_;
+                TypeTrait::Copy(
+                        List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr),
+                        old,
+                        index
+                ); // Copy separately~
+                TypeTrait::Copy(first_ + index + count, old + count, old_size - index);
+            } else {
+                SizeType old_capacity = end_ - first_;
+                if (new_size > old_capacity) {
+                    SizeType new_capacity = List<T>::Cap(new_size);
+                    if (new_capacity - old_capacity > old_capacity * 2) {
+                        T *old = first_;
+                        TypeTrait::Copy(
+                                List<T>::SimpleAllocate(new_size, new_capacity, *data_),
+                                old,
+                                index
+                        );
+                        TypeTrait::Copy(first_ + index + count, old + index, old_size - index);
+                    } else {
+                        T *pos = List<T>::SimpleReallocate(new_size, new_capacity) + index + count;
+                        TypeTrait::Move(
+                                pos + index + count,
+                                first_ + index,
+                                old_size - index
+                        );
+                    }
+                } else {
+                    TypeTrait::Move(first_ + index + count, first_ + index, old_size - index);
+                    last_ += count;
+                }
+            }
+            return first_ + index;
+        }
+        return nullptr;
+    }
+
+    T *AssignImpl(SizeType count) {
+        if (count) {
+            if (data_) {
+                if (*data_ && (**data_).Value() > 1) {
+                    (**data_).DecrementRef();
+                    return List<T>::SimpleAllocate(count, Cap(count), nullptr);
+                } else {
+                    SizeType old_capacity = end_ - first_;
+                    for (; last_ != first_; --last_) {
+                        TypeTrait::Destroy(last_);
+                    }
+                    if (count > old_capacity) {
+                        SizeType new_capacity = Cap(count);
+                        if (new_capacity - old_capacity > old_capacity * 2) {
+                            this->~List();
+                            return List<T>::SimpleAllocate(count, new_capacity, nullptr);
+                        } else {
+                            return List<T>::SimpleReallocate(count, new_capacity);
+                        }
+                    } else {
+                        last_ = first_ + count;
+                        return first_;
+                    }
+                }
+            } else {
+                return List<T>::SimpleAllocate(count, Cap(count), nullptr);
+            }
+        } else {
+            Clear();
+            return nullptr;
+        }
     }
 
     RefCount **data_; // The first bytes of the memory associated to this instance.

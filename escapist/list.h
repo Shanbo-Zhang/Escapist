@@ -379,6 +379,42 @@ public:
         return *this;
     }
 
+    bool Equals(const List<T> &other, bool(*Equals)(const T &, const T &)) {
+        if (&other == this) {
+            return true;
+        } else if (other.Count() != Count()) {
+            return false;
+        } else {
+            for (T *left_pos = first_, *right_pos = other.first_;
+                 left_pos != last_;
+                 ++left_pos, ++right_pos) {
+                if (!Equals(*left_pos, *right_pos)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    bool CompareTo(const List<T> &other, int(Compare)(const T &, const T &)) {
+        if (&other == this) {
+            return true;
+        } else if (other.Count() != Count()) {
+            return false;
+        } else {
+            int rtn;
+            for (T *left_pos = first_, *right_pos = other.first_;
+                 left_pos != last_;
+                 ++left_pos, ++right_pos) {
+                rtn = Compare(*left_pos, *right_pos);
+                if (rtn) {
+                    return rtn;
+                }
+            }
+            return 0;
+        }
+    }
+
     List<T> &Reassign(const T &value, SizeType count = 1,
                       SizeType front_offset = 0, SizeType back_offset = 0) {
         if (T *pos = List<T>::AssignImpl(front_offset + count + back_offset) + front_offset) {
@@ -511,6 +547,12 @@ public:
         return *this;
     }
 
+    /**
+     * Removes the existing elements starting from \p index and continuing \p count times.
+     * @param index the first element intended to be removed
+     * @param count the amount of elements intended to be removed
+     * @return the reference to the current instance
+     */
     List<T> &Remove(SizeType index, SizeType count = 1) {
         if (data_) {
             SizeType old_size = last_ - first_;

@@ -10,6 +10,9 @@
 template<typename T>
 class List {
 public:
+    /**
+     *
+     */
     class Iterator {
     public:
         Iterator() = delete;
@@ -76,6 +79,9 @@ public:
         friend class List<T>;
     };
 
+    /**
+     *
+     */
     class ConstIterator {
     public:
         ConstIterator() = delete;
@@ -639,58 +645,22 @@ public:
      * Simple means it does not consider the validity of given value, and existing data.
      * @return \c first_
      */
-    T *SimpleAllocate(const SizeType &size, const SizeType &capacity, RefCount *const &rc) {
-        data_ = static_cast<RefCount **>(::malloc(TotCap(capacity)));
-        assert(data_);
-        *data_ = rc;
-        first_ = (T *) (data_ + 1);
-        last_ = first_ + size;
-        end_ = first_ + capacity;
-        return first_;
-    }
+    T *SimpleAllocate(const SizeType &size, const SizeType &capacity, RefCount *const &rc);
 
-    T *SimpleReallocate(const SizeType &size, const SizeType &capacity) {
-        SizeType i = sizeof(RefCount *) + capacity * sizeof(T);
-        RefCount **old = data_;
-        RefCount *old_rc = *data_;
-        data_ = reinterpret_cast<RefCount **>(::realloc(data_, TotCap(capacity)));
-        assert(data_);
-        if (old != data_) {
-            *data_ = old_rc;
-            first_ = (T *) (data_ + 1);
-            last_ = first_ + size;
-        }
-        end_ = first_ + capacity;
-        return first_;
-    }
+    /**
+     *
+     * @param size
+     * @param capacity
+     * @return
+     */
+    T *SimpleReallocate(const SizeType &size, const SizeType &capacity);
 
-    T *GrowthAppend(SizeType count) {
-        if (count) { // check if insertion can occur.
-            if (data_) {
-                SizeType old_size = last_ - first_, new_size = old_size + count;
-                if (*data_ && (**data_).Value() > 1) {
-                    (**data_).DecrementRef();
-                    T *old = first_;
-                    TypeTrait::Copy(
-                            List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr),
-                            old,
-                            old_size
-                    );
-                } else {
-                    SizeType old_capacity = end_ - first_;
-                    if (new_size > old_capacity) {
-                        List<T>::SimpleReallocate(new_size, Cap(new_size));
-                    } else {
-                        last_ += count;
-                    }
-                }
-                return first_ + old_size;
-            } else {
-                return List<T>::SimpleAllocate(count, Cap(count), nullptr);
-            }
-        }
-        return nullptr;
-    }
+    /**
+     *
+     * @param count
+     * @return
+     */
+    T *GrowthAppend(SizeType count);
 
     /**
      * Reserves \p count of space in the given \p index.
@@ -699,8 +669,90 @@ public:
      * @param count
      * @return the address can be inserted elements, or nullptr of failed.
      */
-    T *GrowthPrepend(SizeType count) {
-        if (count) {
+    T *GrowthPrepend(SizeType count);
+
+    /**
+     * Reserves \p count of space in the given \p index.
+     * The \p index must be valid.
+     * @param index
+     * @param count
+     * @return the address can be inserted elements, or nullptr of failed.
+     */
+    T *GrowthInsert(SizeType index, SizeType count);
+
+    /**
+     *
+     * @param count
+     * @return
+     */
+    T *AssignImpl(SizeType count);
+
+    RefCount **data_; // The first bytes of the memory associated to this instance.
+    T *first_; // The address of the first element.
+    T *last_; // The address of the last element.
+    T *end_; // The address of the end of the memory.
+};
+
+template<typename T>
+T *List<T>::SimpleAllocate(const SizeType &size, const SizeType &capacity, List::RefCount *const &rc) {
+    data_ = static_cast<RefCount **>(::malloc(TotCap(capacity)));
+    assert(data_);
+    *data_ = rc;
+    first_ = (T *) (data_ + 1);
+    last_ = first_ + size;
+    end_ = first_ + capacity;
+    return first_;
+}
+
+template<typename T>
+T *List<T>::SimpleReallocate(const SizeType &size, const SizeType &capacity) {
+    SizeType i = sizeof(RefCount *) + capacity * sizeof(T);
+    RefCount **old = data_;
+    RefCount *old_rc = *data_;
+    data_ = reinterpret_cast<RefCount **>(::realloc(data_, TotCap(capacity)));
+    assert(data_);
+    if (old != data_) {
+        *data_ = old_rc;
+        first_ = (T *) (data_ + 1);
+        last_ = first_ + size;
+    }
+    end_ = first_ + capacity;
+    return first_;
+}
+
+template<typename T>
+T *List<T>::GrowthAppend(SizeType count) {
+    if (count) { // check if insertion can occur.
+        if (data_) {
+            SizeType old_size = last_ - first_, new_size = old_size + count;
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                T *old = first_;
+                TypeTrait::Copy(
+                        List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr),
+                        old,
+                        old_size
+                );
+            } else {
+                SizeType old_capacity = end_ - first_;
+                if (new_size > old_capacity) {
+                    List<T>::SimpleReallocate(new_size, Cap(new_size));
+                } else {
+                    last_ += count;
+                }
+            }
+            return first_ + old_size;
+        } else {
+            return List<T>::SimpleAllocate(count, Cap(count), nullptr);
+        }
+    }
+    return nullptr;
+}
+
+template<typename T>
+T *List<T>::GrowthPrepend(SizeType count) {
+    if (count) {
+        if (data_) {
             SizeType old_size = last_ - first_, new_size = old_size + count;
             if (*data_ && (**data_).Value() > 1) {
                 (**data_).DecrementRef();
@@ -735,98 +787,90 @@ public:
                 }
             }
             return first_;
+        } else {
+            return List<T>::SimpleAllocate(count, Cap(count), nullptr);
         }
-        return nullptr;
     }
+    return nullptr;
+}
 
-    /**
-     * Reserves \p count of space in the given \p index.
-     * The \p index must be valid.
-     * @param index
-     * @param count
-     * @return the address can be inserted elements, or nullptr of failed.
-     */
-    T *GrowthInsert(SizeType index, SizeType count) {
-        if (count && data_) { // check if insertion can occur.
-            SizeType old_size = last_ - first_; // count the size for verifying and future.
-            assert(index < old_size);
-            SizeType new_size = old_size + count;
+template<typename T>
+T *List<T>::GrowthInsert(SizeType index, SizeType count) {
+    if (count && data_) { // check if insertion can occur.
+        SizeType old_size = last_ - first_; // count the size for verifying and future.
+        assert(index < old_size);
+        SizeType new_size = old_size + count;
+        if (*data_ && (**data_).Value() > 1) {
+            (**data_).DecrementRef();
+            T *old = first_;
+            TypeTrait::Copy(
+                    List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr),
+                    old,
+                    index
+            ); // Copy separately~
+            TypeTrait::Copy(first_ + index + count, old + count, old_size - index);
+        } else {
+            SizeType old_capacity = end_ - first_;
+            if (new_size > old_capacity) {
+                SizeType new_capacity = List<T>::Cap(new_size);
+                if (new_capacity - old_capacity > old_capacity * 2) {
+                    T *old = first_;
+                    TypeTrait::Copy(
+                            List<T>::SimpleAllocate(new_size, new_capacity, *data_),
+                            old,
+                            index
+                    );
+                    TypeTrait::Copy(first_ + index + count, old + index, old_size - index);
+                } else {
+                    T *pos = List<T>::SimpleReallocate(new_size, new_capacity) + index + count;
+                    TypeTrait::Move(
+                            pos + index + count,
+                            first_ + index,
+                            old_size - index
+                    );
+                }
+            } else {
+                TypeTrait::Move(first_ + index + count, first_ + index, old_size - index);
+                last_ += count;
+            }
+        }
+        return first_ + index;
+    }
+    return nullptr;
+}
+
+template<typename T>
+T *List<T>::AssignImpl(SizeType count) {
+    if (count) {
+        if (data_) {
             if (*data_ && (**data_).Value() > 1) {
                 (**data_).DecrementRef();
-                T *old = first_;
-                TypeTrait::Copy(
-                        List<T>::SimpleAllocate(new_size, List<T>::Cap(new_size), nullptr),
-                        old,
-                        index
-                ); // Copy separately~
-                TypeTrait::Copy(first_ + index + count, old + count, old_size - index);
+                return List<T>::SimpleAllocate(count, Cap(count), nullptr);
             } else {
                 SizeType old_capacity = end_ - first_;
-                if (new_size > old_capacity) {
-                    SizeType new_capacity = List<T>::Cap(new_size);
+                for (; last_ != first_; --last_) {
+                    TypeTrait::Destroy(last_);
+                }
+                if (count > old_capacity) {
+                    SizeType new_capacity = Cap(count);
                     if (new_capacity - old_capacity > old_capacity * 2) {
-                        T *old = first_;
-                        TypeTrait::Copy(
-                                List<T>::SimpleAllocate(new_size, new_capacity, *data_),
-                                old,
-                                index
-                        );
-                        TypeTrait::Copy(first_ + index + count, old + index, old_size - index);
+                        this->~List();
+                        return List<T>::SimpleAllocate(count, new_capacity, nullptr);
                     } else {
-                        T *pos = List<T>::SimpleReallocate(new_size, new_capacity) + index + count;
-                        TypeTrait::Move(
-                                pos + index + count,
-                                first_ + index,
-                                old_size - index
-                        );
+                        return List<T>::SimpleReallocate(count, new_capacity);
                     }
                 } else {
-                    TypeTrait::Move(first_ + index + count, first_ + index, old_size - index);
-                    last_ += count;
+                    last_ = first_ + count;
+                    return first_;
                 }
-            }
-            return first_ + index;
-        }
-        return nullptr;
-    }
-
-    T *AssignImpl(SizeType count) {
-        if (count) {
-            if (data_) {
-                if (*data_ && (**data_).Value() > 1) {
-                    (**data_).DecrementRef();
-                    return List<T>::SimpleAllocate(count, Cap(count), nullptr);
-                } else {
-                    SizeType old_capacity = end_ - first_;
-                    for (; last_ != first_; --last_) {
-                        TypeTrait::Destroy(last_);
-                    }
-                    if (count > old_capacity) {
-                        SizeType new_capacity = Cap(count);
-                        if (new_capacity - old_capacity > old_capacity * 2) {
-                            this->~List();
-                            return List<T>::SimpleAllocate(count, new_capacity, nullptr);
-                        } else {
-                            return List<T>::SimpleReallocate(count, new_capacity);
-                        }
-                    } else {
-                        last_ = first_ + count;
-                        return first_;
-                    }
-                }
-            } else {
-                return List<T>::SimpleAllocate(count, Cap(count), nullptr);
             }
         } else {
-            Clear();
-            return nullptr;
+            return List<T>::SimpleAllocate(count, Cap(count), nullptr);
         }
+    } else {
+        Clear();
+        return nullptr;
     }
-
-    RefCount **data_; // The first bytes of the memory associated to this instance.
-    T *first_; // The address of the first element.
-    T *last_; // The address of the last element.
-    T *end_; // The address of the end of the memory.
-};
+}
 
 #endif //ESCAPIST_LIST_H

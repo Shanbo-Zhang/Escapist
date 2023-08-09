@@ -1,0 +1,4 @@
+#ifndef ESCAPIST_TIME_H
+#define ESCAPIST_TIME_H
+
+#endif //ESCAPIST_TIME_H

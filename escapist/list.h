@@ -3,6 +3,7 @@
 
 // TODO: Introduction
 
+#include <initializer_list>
 #include "base.h"
 #include "internal/ref_count.h"
 #include "internal/type_trait.h"
@@ -19,6 +20,11 @@ public:
 
         Iterator(const Iterator &other) noexcept
                 : pos_(other.pos_), index_(other.index_), from_(other.from_) {}
+
+        Iterator(Iterator &&other) noexcept
+                : pos_(other.pos_), index_(other.index_), from_(other.from_) {
+            other.pos_ = other.index_ = other.from_ = 0;
+        }
 
         List<T>::Iterator &operator=(const List<T>::Iterator &other) {
             if (this == &other) {
@@ -180,6 +186,10 @@ public:
         }
     }
 
+    /**
+     *
+     * @param other
+     */
     List(const List<T> &other) noexcept {
         if (&other == this) {
             return;
@@ -197,6 +207,10 @@ public:
         }
     }
 
+    /**
+     *
+     * @param other
+     */
     List(List<T> &&other) noexcept {
         if (&other == this) {
             return;
@@ -206,6 +220,14 @@ public:
         }
     }
 
+    /**
+     *
+     * @param other
+     * @param count
+     * @param offset
+     * @param front_offset
+     * @param back_offset
+     */
     List(const List<T> &other, SizeType count, SizeType offset,
          SizeType front_offset = 0, SizeType back_offset = 0) {
         if (&other == this) {
@@ -218,6 +240,10 @@ public:
         }
     }
 
+    /**
+     *
+     * @param i
+     */
     List(const std::initializer_list<T> i) {
         if (SizeType s = i.size()) {
             T *pos = List<T>::SimpleAllocate(i.size(), Cap(i.size()), nullptr);
@@ -254,6 +280,10 @@ public:
         }
     }
 
+    /**
+     *
+     * @return
+     */
     T *Data() {
         if (data_) {
             if ((*data_) && (**data_).Value() > 1) {
@@ -267,10 +297,19 @@ public:
         return nullptr;
     }
 
+    /**
+     *
+     * @return
+     */
     const T *ConstData() const noexcept {
         return first_;
     }
 
+    /**
+     *
+     * @param index
+     * @return
+     */
     T &At(SizeType index) {
         assert(data_);
         SizeType size = last_ - first_;
@@ -285,6 +324,11 @@ public:
         return *(first_ + index);
     }
 
+    /**
+     *
+     * @param index
+     * @return
+     */
     List<T>::Iterator IteratorAt(SizeType index) {
         assert(data_);
         SizeType size = last_ - first_;
@@ -299,6 +343,11 @@ public:
         return List<T>::Iterator(data_ + index, index, this);
     }
 
+    /**
+     *
+     * @param index
+     * @return
+     */
     const T &ConstAt(SizeType index) const {
         assert(index < last_ - first_);
         return *(first_ + index);
@@ -309,14 +358,26 @@ public:
         return List<T>::ConstIterator(data_ + index, index, this);
     }
 
+    /**
+     *
+     * @return
+     */
     SizeType Count() const noexcept {
         return data_ ? last_ - first_ : 0;
     }
 
+    /**
+     *
+     * @return
+     */
     SizeType Capacity() const noexcept {
         return data_ ? end_ - first_ : 0;
     }
 
+    /**
+     *
+     * @return
+     */
     bool IsEmpty() const noexcept {
         return !(data_ && (last_ == first_));
     }
@@ -325,6 +386,10 @@ public:
         return !data_;
     }
 
+    /**
+     *
+     * @return
+     */
     List<T>::Iterator First() noexcept {
         if (data_ && (*data_) && (**data_).Value() > 1) {
             T *old = first_;
@@ -335,10 +400,18 @@ public:
         return List<T>::Iterator(first_, 0, this);
     }
 
+    /**
+     *
+     * @return
+     */
     List<T>::ConstIterator ConstFirst() const noexcept {
         return List<T>::ConstIterator(first_, 0, this);
     }
 
+    /**
+     *
+     * @return
+     */
     List<T>::Iterator Last() noexcept {
         SizeType size = last_ - first_;
         if (data_ && (*data_) && (**data_).Value() > 1) {
@@ -349,10 +422,18 @@ public:
         return List<T>::Iterator(last_, size, this);
     }
 
+    /**
+     *
+     * @return
+     */
     List<T>::ConstIterator ConstLast() const noexcept {
         return List<T>::ConstIterator(last_, List<T>::Count(), this);
     }
 
+    /**
+     *
+     * @return
+     */
     List<T> &Clear() {
         if (data_) {
             if (*data_ && (**data_).Value() > 1) {
@@ -367,6 +448,11 @@ public:
         return *this;
     }
 
+    /**
+     *
+     * @param capacity
+     * @return
+     */
     List<T> &EnsureCapacity(SizeType capacity) {
         if (data_) {
             if (capacity > end_ - first_) {
@@ -385,6 +471,12 @@ public:
         return *this;
     }
 
+    /**
+     *
+     * @param other
+     * @param Equals
+     * @return
+     */
     bool Equals(const List<T> &other, bool(*Equals)(const T &, const T &)) {
         if (&other == this) {
             return true;
@@ -402,6 +494,12 @@ public:
         }
     }
 
+    /**
+     *
+     * @param other
+     * @param Compare
+     * @return
+     */
     bool CompareTo(const List<T> &other, int(Compare)(const T &, const T &)) {
         if (&other == this) {
             return true;
@@ -421,6 +519,14 @@ public:
         }
     }
 
+    /**
+     *
+     * @param value
+     * @param count
+     * @param front_offset
+     * @param back_offset
+     * @return
+     */
     List<T> &Reassign(const T &value, SizeType count = 1,
                       SizeType front_offset = 0, SizeType back_offset = 0) {
         if (T *pos = List<T>::AssignImpl(front_offset + count + back_offset) + front_offset) {
@@ -431,6 +537,14 @@ public:
         return *this;
     }
 
+    /**
+     *
+     * @param data
+     * @param count
+     * @param front_offset
+     * @param back_offset
+     * @return
+     */
     List<T> &Reassign(const T *data, SizeType count,
                       SizeType front_offset = 0, SizeType back_offset = 0) {
         if (T *pos = List<T>::AssignImpl(front_offset + count + back_offset) + front_offset) {

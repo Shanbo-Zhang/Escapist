@@ -2,6 +2,7 @@
 #define ESCAPIST_TIME_H
 
 #include "base.h"
+#include <ctime>
 
 enum class DayOfWeek : int {
     kMonday,
@@ -11,6 +12,24 @@ enum class DayOfWeek : int {
     kFriday,
     kSaturday,
     kSunday
+};
+
+class Calendar {
+private:
+    int year_;
+    int month_;
+    int day_;
+    int hour_;
+    int minute_;
+    int second_;
+
+public:
+    Calendar() noexcept
+            : year_(-1), month_(-1), day_(-1), hour_(-1), minute_(-1), second_(-1) {}
+
+    Calendar(time_t time) noexcept {
+
+    }
 };
 
 class Date {
@@ -26,6 +45,12 @@ public:
 
     bool IsValid() const noexcept {
         return year_ > 0 && month_ > 0 && day_ > 0;
+    }
+
+    static constexpr bool IsLeapYear(const int &year) {
+        // return !(year % 400) || (!(year % 100) && (year % 4));
+        // By https://gist.github.com/dolmen/892083, he used contrapositive, to prevent frequent mod operations.
+        return !(year % 4 != 0 || (year % 100 == 0 && year % 400 != 0));
     }
 
     static int Compare(const int &left_year, const int &left_month, const int &left_day,
@@ -104,6 +129,18 @@ public:
     Date &SetDay(const int &value) {
         day_ = value;
         return *this;
+    }
+
+    Date &AddDay(const int &change) {
+
+    }
+
+    Date &AddMonth(const int &change) {
+
+    }
+
+    Date &AddYear(const int &change) {
+
     }
 
 private:

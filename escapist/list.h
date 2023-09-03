@@ -358,6 +358,21 @@ public:
         return List<T>::ConstIterator(data_ + index, index, this);
     }
 
+    List<T> &SetAt(SizeType index, const T &value) {
+        assert(data_);
+        SizeType size = last_ - first_;
+        assert(index < size);
+        if (*data_) {
+            if ((*data_) && (**data_).Value() > 1) {
+                T *old = first_;
+                (**data_).DecrementRef();
+                TypeTrait::Copy(List<T>::SimpleAllocate(size, List<T>::Cap(size), nullptr), old, size);
+            }
+        }
+        TypeTrait::Assign(first_ + index, value);
+        return *this;
+    }
+
     /**
      *
      * @return

@@ -6,6 +6,7 @@
 #define ESCAPIST_STRING_H
 
 #include "base.h"
+#include "internal/ref_count.h"
 #include <type_traits>
 #include <memory>
 #include <cstring>
@@ -859,9 +860,237 @@ struct ICharTrait<wchar_t> {
     }
 };
 
+/**
+ *
+ * @tparam Ch
+ */
 template<typename Ch>
 class BasicString {
+public:
+    BasicString() : mode_(Mode::Null), data_(nullptr), first_(nullptr), last_(nullptr), end_(nullptr) {}
 
+    BasicString(SizeType count, const Ch &value, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (count) {
+            if (Ch *pos = BasicString<Ch>::SimpleAllocate(front_offset + count + back_offset, nullptr) + front_offset) {
+                ICharTrait<Ch>::Fill(pos, value, count);
+            }
+        }
+    }
+
+    BasicString(const Ch *str) : BasicString(str, ICharTrait<Ch>::Length(str), 0, 0) {}
+
+    BasicString(const Ch *str, SizeType len, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (str && len) {
+            if (Ch *pos = BasicString<Ch>::SimpleAllocate(front_offset + len + back_offset, nullptr) + front_offset) {
+                ICharTrait<Ch>::Copy(pos, str, len);
+            }
+        }
+    }
+
+    BasicString(const BasicString<Ch> &other) : mode_(other.mode_) {
+        if (&other == this) {
+            return;
+        }
+
+        ICharTrait<Ch>::Copy(this, &other, sizeof(BasicString<Ch>));
+        if (mode_ == Mode::Allocate) {
+            if (data_) {
+                if (*data_ && (**data_).Value() > 1) {
+                    (**data_).IncrementRef();
+                } else {
+                    *data_ = new RefCount(2);
+                }
+            } else {
+                new(this)BasicString<Ch>();
+            }
+        }
+    }
+
+    BasicString(const BasicString<Ch> &other, SizeType offset, SizeType count,
+                SizeType front_offset = 0, SizeType back_offset = 0) {
+        assert(count < other.last_ - other.first_ - offset);
+        new(this)BasicString<Ch>(other.first_ + offset, count, front_offset, back_offset);
+    }
+
+    ~BasicString() {
+        if (mode_ == Mode::Allocate) {
+            if (data_) {
+                if (*data_ && (**data_).Value() > 1) {
+                    (**data_).DecrementRef();
+                    return;
+                } else {
+                    delete *data_;
+                }
+                ::free((void *) data_);
+            }
+        }
+    }
+
+    SizeType Length() const noexcept {
+        if (mode_ == Mode::Null) {
+            return 0;
+        } else if (mode_ == Mode::Small) {
+            return SmallLength();
+        } else {
+            return first_ ? last_ - first_ : 0;
+        }
+    }
+
+    bool IsEmpty() const noexcept {
+        if (mode_ == Mode::Null) {
+            return true;
+        } else if (mode_ == Mode::Small) {
+            return small_[kSmallLen] == kSmallLen;
+        } else {
+            return last_ == first_;
+        }
+    }
+
+    SizeType Capacity() const noexcept {
+        if (mode_ == Mode::Null) {
+            return 0;
+        } else if (mode_ == Mode::Small) {
+            return kSmallCap;
+        } else {
+            return first_ ? end_ - first_ : 0;
+        }
+    }
+
+    BasicString<Ch> &EnsureCapacity(const SizeType &capacity) {
+        if (mode_ == Mode::Null) {
+            if (capacity) {
+                SimpleAllocate(SmallLength(), capacity, nullptr);
+            }
+        } else if (mode_ == Mode::Small) {
+            if (capacity >= kSmallCap) {
+                SizeType len(SmallLength());
+                if (Ch *pos = SimpleAllocate(len, capacity, nullptr)) {
+                    ICharTrait<Ch>::Copy(pos, small_, len);
+                }
+            }
+        } else {
+            if (data_) {
+                SizeType old_len = last_ - first_;
+                if (capacity > end_ - first_) {
+                    if (*data_ && (**data_).Value() > 1) {
+                        (**data_).DecrementRef();
+                        Ch *old = first_;
+                        if (Ch *pos = SimpleAllocate(old_len, capacity, nullptr)) {
+                            ICharTrait<Ch>::Copy(pos, old, old_len);
+                        }
+                    } else {
+                        Ch *old = first_;
+                        data_ = static_cast<RefCount **>(::realloc(data_, TotCap(capacity)));
+                        first_ = (Ch *) (data_ + 1);
+                        end_ = first_ + capacity;
+                        if (first_ != old) {
+                            last_ = first_ + old_len;
+                        }
+                    }
+                }
+            } else {
+                if (capacity) {
+                    SimpleAllocate(SmallLength(), capacity, nullptr);
+                }
+            }
+        }
+        return *this;
+    }
+
+private:
+    enum class Mode {
+        Null,
+        Small,
+        Allocate
+    };
+
+    using RefCount = Internal::ReferenceCount;
+
+    struct GeneralBuffer {
+        RefCount **ref_;
+        Ch *first_;
+        Ch *last_;
+        Ch *end_;
+    };
+
+    Mode mode_;
+    union {
+        unsigned char bytes_[sizeof(GeneralBuffer)];
+        Ch small_[sizeof(GeneralBuffer) / sizeof(Ch)];
+        struct {
+            RefCount **data_;
+            Ch *first_;
+            Ch *last_;
+            Ch *end_;
+        };
+    };
+
+    static constexpr SizeType kSmallCap = sizeof(GeneralBuffer) / sizeof(Ch);
+    static constexpr SizeType kSmallLen = kSmallCap - 1;
+    static constexpr SizeType kMinCap = (sizeof(Ch *) * 8) / sizeof(Ch);
+
+    static constexpr SizeType Cap(SizeType len) {
+        if (len) {
+            if (len <= kMinCap) {
+                return kMinCap;
+            } else {
+                return len * 1.5;
+            }
+        }
+        return 0;
+    }
+
+    static constexpr SizeType TotCap(SizeType capacity) {
+        return sizeof(RefCount *) + capacity * sizeof(Ch);
+    }
+
+    SizeType SmallLength() const noexcept {
+        return kSmallLen - SizeType(small_[kSmallLen]);
+    }
+
+    void SetSmallLength(const SizeType &len, bool putZero) {
+        small_[kSmallLen] = Ch(kSmallLen - len);
+        if (len != kSmallLen && putZero) {
+            small_[len] = Ch(0);
+        }
+    }
+
+    Ch *SimpleAllocate(const SizeType &len, RefCount *const &rc) {
+        if (len > kSmallLen) {
+            mode_ = Mode::Allocate;
+            SizeType cap(Cap(len));
+            data_ = static_cast<RefCount **>(::malloc(TotCap(cap)));
+            assert(data_);
+            *data_ = rc;
+            first_ = (Ch *) (data_ + 1);
+            last_ = first_ + len;
+            end_ = first_ + cap;
+            *last_ = Ch(0);
+            return first_;
+        } else {
+            mode_ = Mode::Small;
+            SetSmallLength(len, true);
+            return small_;
+        }
+    }
+
+    Ch *SimpleAllocate(const SizeType &len, const SizeType &cap, RefCount *const &rc) {
+        if (cap > kSmallCap) {
+            mode_ = Mode::Allocate;
+            data_ = static_cast<RefCount **>(::malloc(TotCap(cap)));
+            assert(data_);
+            *data_ = rc;
+            first_ = (Ch *) (data_ + 1);
+            last_ = first_ + len;
+            end_ = first_ + cap;
+            *last_ = Ch(0);
+            return first_;
+        } else {
+            mode_ = Mode::Small;
+            SetSmallLength(len, true);
+            return small_;
+        }
+    }
 };
 
 #endif //ESCAPIST_STRING_H

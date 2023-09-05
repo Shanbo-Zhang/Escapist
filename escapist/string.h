@@ -181,7 +181,7 @@ struct ICharTrait {
         for (; *src; ++src) {
             if (*src == *sub) { // the first char occurs, start to check
                 const Ch *src_ref = src, // prevent {src} from changing to ensure every char is scanned.
-                *sub_ref = sub; // also make a copy of {sub} to go back if doesn't match.
+                *sub_ref = sub; // also make a copy of {sub} to go back if it doesn't match.
                 for (; *src_ref && *sub_ref && *src_ref == *sub_ref; ++src_ref, ++sub_ref);
                 if (!*sub_ref) { // finished scanning, and all char in sub matched.
                     return src; // Thus, return it!
@@ -206,7 +206,7 @@ struct ICharTrait {
         for (; *src && count; ++src, --count) {
             if (*src == *sub) { // the first char occurs, start to check
                 const Ch *src_ref = src, // prevent {src} from changing to ensure every char is scanned.
-                *sub_ref = sub; // also make a copy of {sub} to go back if doesn't match.
+                *sub_ref = sub; // also make a copy of {sub} to go back if it doesn't match.
                 SizeType count_ref = count;
                 for (; *src_ref && *sub_ref && *src_ref == *sub_ref && count_ref; ++src_ref, ++sub_ref, --count_ref);
                 if (!*sub_ref) { // finished scanning, and all char in sub matched.
@@ -474,7 +474,7 @@ struct ICharTrait<char> {
         for (; *src && count; ++src, --count) {
             if (*src == *sub) { // the first char occurs, start to check
                 const char *src_ref = src, // prevent {src} from changing to ensure every char is scanned.
-                *sub_ref = sub; // also make a copy of {sub} to go back if doesn't match.
+                *sub_ref = sub; // also make a copy of {sub} to go back if it doesn't match.
                 SizeType count_ref = count;
                 for (; *src_ref && *sub_ref && *src_ref == *sub_ref && count_ref; ++src_ref, ++sub_ref, --count_ref);
                 if (!*sub_ref) { // finished scanning, and all char in sub matched.
@@ -740,7 +740,7 @@ struct ICharTrait<wchar_t> {
         for (; *src && count; ++src, --count) {
             if (*src == *sub) { // the first char occurs, start to check
                 const wchar_t *src_ref = src, // prevent {src} from changing to ensure every char is scanned.
-                *sub_ref = sub; // also make a copy of {sub} to go back if doesn't match.
+                *sub_ref = sub; // also make a copy of {sub} to go back if it doesn't match.
                 SizeType count_ref = count;
                 for (; *src_ref && *sub_ref && *src_ref == *sub_ref && count_ref; ++src_ref, ++sub_ref, --count_ref);
                 if (!*sub_ref) { // finished scanning, and all char in sub matched.
@@ -892,7 +892,7 @@ public:
             return;
         }
 
-        ICharTrait<Ch>::Copy(this, &other, sizeof(BasicString<Ch>));
+        ::memcpy(this, &other, sizeof(BasicString<Ch>));
         if (mode_ == Mode::Allocate) {
             if (data_) {
                 if (*data_ && (**data_).Value() > 1) {
@@ -964,8 +964,10 @@ public:
         } else if (mode_ == Mode::Small) {
             if (capacity >= kSmallCap) {
                 SizeType len(SmallLength());
+                Ch old[kSmallCap];
+                ICharTrait<Ch>::Copy(old, small_, len);
                 if (Ch *pos = SimpleAllocate(len, capacity, nullptr)) {
-                    ICharTrait<Ch>::Copy(pos, small_, len);
+                    ICharTrait<Ch>::Copy(pos, old, len);
                 }
             }
         } else {
@@ -992,6 +994,45 @@ public:
                 if (capacity) {
                     SimpleAllocate(SmallLength(), capacity, nullptr);
                 }
+            }
+        }
+        return *this;
+    }
+
+    Ch *Data() {
+        if (mode_ == Mode::Null) {
+            return nullptr;
+        } else if (mode_ == Mode::Small) {
+            return small_;
+        } else if (data_) {
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                SizeType len = last_ - first_;
+                Ch *old = first_, *pos = SimpleAllocate(len, nullptr);
+                if (pos) {
+                    ICharTrait<Ch>::Copy(pos, first_, len);
+                }
+            }
+            return first_;
+        }
+        return nullptr;
+    }
+
+    const Ch *ConstData() const noexcept {
+        if (mode_ == Mode::Null) {
+            return nullptr;
+        } else if (mode_ == Mode::Small) {
+            return small_;
+        } else if (data_) {
+            return first_;
+        }
+        return nullptr;
+    }
+
+    BasicString<Ch> &Append(const Ch &ch, SizeType count = 1, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (ch && count) {
+            if (Ch *pos = GrowthAppend(front_offset + count + back_offset) + front_offset) {
+                ICharTrait<Ch>::Fill(pos, ch, count);
             }
         }
         return *this;
@@ -1089,6 +1130,55 @@ private:
             mode_ = Mode::Small;
             SetSmallLength(len, true);
             return small_;
+        }
+    }
+
+    Ch *GrowthAppend(const SizeType &count) {
+        if (mode_ == Mode::Null) {
+            return SimpleAllocate(count, nullptr);
+        } else if (mode_ == Mode::Small) {
+            SizeType old_len(SmallLength()), new_len(old_len + count);
+            if (new_len > kSmallLen) {
+                Ch old[kSmallCap];
+                ICharTrait<Ch>::Copy(old, small_, old_len);
+                Ch *pos = SimpleAllocate(new_len, nullptr);
+                if (pos) {
+                    ICharTrait<Ch>::Copy(pos, old, old_len);
+                }
+                return pos + old_len;
+            } else {
+                SetSmallLength(new_len, true);
+                return small_ + old_len;
+            }
+        } else {
+            if (data_) {
+                SizeType old_len(last_ - first_), new_len(old_len + count);
+                if (*data_ && (**data_).Value() > 1) {
+                    (**data_).DecrementRef();
+                    Ch *old = first_, *pos = SimpleAllocate(new_len, nullptr);
+                    if (pos) {
+                        ICharTrait<Ch>::Copy(pos, old, old_len);
+                    }
+                    return pos + old_len;
+                } else {
+                    if (new_len > end_ - first_) {
+                        SizeType new_cap(Cap(new_len));
+                        RefCount **old_data = data_;
+                        RefCount *old_ref = *data_;
+                        data_ = static_cast<RefCount **>(::realloc(data_, TotCap(new_cap)));
+                        if (data_ != old_data) {
+                            first_ = (Ch *) (data_ + 1);
+                        }
+                        last_ = first_ + new_len;
+                        end_ = first_ + new_cap;
+                    } else {
+                        last_ += count;
+                    }
+                    return first_ + old_len;
+                }
+            } else {
+                return SimpleAllocate(count, nullptr);
+            }
         }
     }
 };

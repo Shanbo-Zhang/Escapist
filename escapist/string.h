@@ -867,18 +867,41 @@ struct ICharTrait<wchar_t> {
 template<typename Ch>
 class BasicString {
 public:
+    /**
+     * Creates an empty instance
+     */
     BasicString() : mode_(Mode::Null), data_(nullptr), first_(nullptr), last_(nullptr), end_(nullptr) {}
 
-    BasicString(SizeType count, const Ch &value, SizeType front_offset = 0, SizeType back_offset = 0) {
+    /**
+     * Creates an instance with \p count occurrence pf \p ch.
+     * Remains \p front_offset before the first \p ch and \p back_offset after the last \p ch.
+     * @param count the amount of \p ch added into the instance
+     * @param ch character
+     * @param front_offset the amount of space remained before the first \p ch.
+     * @param back_offset the amount of space remained after the last \p ch.
+     */
+    BasicString(SizeType count, const Ch &ch, SizeType front_offset = 0, SizeType back_offset = 0) {
         if (count) {
             if (Ch *pos = BasicString<Ch>::SimpleAllocate(front_offset + count + back_offset, nullptr) + front_offset) {
-                ICharTrait<Ch>::Fill(pos, value, count);
+                ICharTrait<Ch>::Fill(pos, ch, count);
             }
         }
     }
 
+    /**
+     * Creates an instance with \p str without remaining spaces.
+     * @param str string added to the instance
+     */
     BasicString(const Ch *str) : BasicString(str, ICharTrait<Ch>::Length(str), 0, 0) {}
 
+    /**
+     * Creates an instance with the first \p len characters of c-style null-terminated string starting at \p str.
+     * Remains \p front_offset before the first \p ch and \p back_offset after the last \p ch.
+     * @param str the address of the character sequence
+     * @param len the length of \p str; the amount of characters to be added
+     * @param front_offset the amount of space remained before the \p str.
+     * @param back_offset the amount of space remained after the \p str.
+     */
     BasicString(const Ch *str, SizeType len, SizeType front_offset = 0, SizeType back_offset = 0) {
         if (str && len) {
             if (Ch *pos = BasicString<Ch>::SimpleAllocate(front_offset + len + back_offset, nullptr) + front_offset) {
@@ -887,17 +910,29 @@ public:
         }
     }
 
+    /**
+     * COPY CONSTRUCTOR
+     * Creates an instance with another instance.
+     * If \p other is large enough, it will trigger sharing process.
+     * @param other another instance
+     */
     BasicString(const BasicString<Ch> &other) : mode_(other.mode_) {
         if (&other == this) {
-            return;
+            return; // don't do anything if the input is the current instance.
         }
 
+        /*
+         * Copy all these things directly, because there are three cases:
+         *  - 1. mode == Null: the input instance is also null, then its member should be all 0.
+         *  - 2. mode == Small: the small_ is valid, and we just need to directly copy all these things.
+         *  - 3. mode == Allocate: the current instance will share with input instance (CODE BELOW).
+         */
         ::memcpy(this, &other, sizeof(BasicString<Ch>));
         if (mode_ == Mode::Allocate) {
-            if (data_) {
-                if (*data_ && (**data_).Value() > 1) {
+            if (data_) { // prevent from violation.
+                if (*data_) { // the reference count has existed, then just need to add it.
                     (**data_).IncrementRef();
-                } else {
+                } else { // otherwise, create a new one and initialize it to 2.
                     *data_ = new RefCount(2);
                 }
             } else {

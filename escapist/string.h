@@ -941,12 +941,24 @@ public:
         }
     }
 
+    /**
+     *
+     * @param other
+     * @param offset
+     * @param count
+     * @param front_offset
+     * @param back_offset
+     */
     BasicString(const BasicString<Ch> &other, SizeType offset, SizeType count,
                 SizeType front_offset = 0, SizeType back_offset = 0) {
         assert(count < other.last_ - other.first_ - offset);
         new(this)BasicString<Ch>(other.first_ + offset, count, front_offset, back_offset);
     }
 
+    /**
+     * DESTRUCTOR;
+     * Releases all unnecessary data if they are not sharing with other instances.
+     */
     ~BasicString() {
         if (mode_ == Mode::Allocate) {
             if (data_) {
@@ -961,6 +973,9 @@ public:
         }
     }
 
+    /**
+     * @return the length of the string, in terms of characters
+     */
     SizeType Length() const noexcept {
         if (mode_ == Mode::Null) {
             return 0;
@@ -971,6 +986,9 @@ public:
         }
     }
 
+    /**
+     * @return \b true if the length is zero.
+     */
     bool IsEmpty() const noexcept {
         if (mode_ == Mode::Null) {
             return true;
@@ -981,6 +999,9 @@ public:
         }
     }
 
+    /**
+     * @return the maximum number of characters the instance can store without enlarging.
+     */
     SizeType Capacity() const noexcept {
         if (mode_ == Mode::Null) {
             return 0;
@@ -991,6 +1012,12 @@ public:
         }
     }
 
+    /**
+     * Ensures the instance can store \p capacity amount of characters.
+     * This is usually called before the instance will be write externally.
+     * @param capacity the amount of characters required.
+     * @return the current instance
+     */
     BasicString<Ch> &EnsureCapacity(const SizeType &capacity) {
         if (mode_ == Mode::Null) {
             if (capacity) {
@@ -1034,6 +1061,10 @@ public:
         return *this;
     }
 
+    /**
+     *
+     * @return
+     */
     Ch *Data() {
         if (mode_ == Mode::Null) {
             return nullptr;

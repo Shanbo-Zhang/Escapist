@@ -1125,6 +1125,15 @@ public:
         return nullptr;
     }
 
+    /**
+     * Extends the string by putting additional \p count consecutive copies of character \p ch at the end of the instance.
+     * Remains \p front_offset before the first \p ch and \p back_offset after the last \p ch.
+     * @param ch additional character
+     * @param count number of copies
+     * @param front_offset the amount of space remained before the \p str.
+     * @param back_offset the amount of space remained after the \p str.
+     * @return the current instance
+     */
     BasicString<Ch> &Append(const Ch &ch, SizeType count = 1, SizeType front_offset = 0, SizeType back_offset = 0) {
         if (ch && count) {
             if (Ch *pos = GrowthAppend(front_offset + count + back_offset) + front_offset) {
@@ -1134,10 +1143,45 @@ public:
         return *this;
     }
 
+    /**
+     * Extends the string by putting the c-style null-terminated string \p str at the end of the instance.
+     * Remains \p front_offset before the first character and \p back_offset after the last character.
+     * @param str the additional c-style null-terminated string
+     * @param front_offset the amount of space remained before the \p str.
+     * @param back_offset the amount of space remained after the \p str.
+     * @return the current instance
+     */
+    BasicString<Ch> &Append(const Ch *str, SizeType front_offset = 0, SizeType back_offset = 0) {
+        return BasicString<Ch>::Append(str, ICharTrait<Ch>::Length(str), front_offset, back_offset);
+    }
+
+    /**
+     * Extends the string by putting first \p len characters of \p str at the end of the instance.
+     * Remains \p front_offset before the first character and \p back_offset after the last character.
+     * @param str the additional array of characters
+     * @param len the amount of characters to be added
+     * @param front_offset the amount of space remained before the \p str.
+     * @param back_offset the amount of space remained after the \p str.
+     * @return the current instance
+     */
+    BasicString<Ch> &Append(const Ch *str, SizeType len, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (str && len) {
+            if (Ch *pos = GrowthAppend(front_offset + len + back_offset) + front_offset) {
+                ICharTrait<Ch>::Copy(pos, str, len);
+            }
+        }
+        return *this;
+    }
+
 private:
     enum class Mode {
+        // The instance is empty.
         Null,
+
+        // The string stores the char sequence in the stack.
         Small,
+
+        // The string stores the char sequence in the heap.
         Allocate
     };
 

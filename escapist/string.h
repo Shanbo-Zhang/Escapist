@@ -1173,6 +1173,29 @@ public:
         return *this;
     }
 
+    BasicString<Ch> &Append(const BasicString<Ch> &other, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (data_ || front_offset || back_offset) {
+            if (other.mode_ == Mode::Small) {
+                return Append(other.small_, other.SmallLength(), front_offset, back_offset);
+            } else if (other.mode_ == Mode::Allocate) {
+                return Append(other.first_, other.last_ - first_, front_offset, back_offset);
+            }
+        } else {
+            new(this)BasicString<Ch>(other);
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Append(const BasicString<Ch> &other, SizeType offset, SizeType len,
+                            SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (other.mode_ == Mode::Small) {
+            return Append(other.small_ + offset, len, front_offset, back_offset);
+        } else if (other.mode_ == Mode::Allocate) {
+            return Append(other.first_ + offset, len, front_offset, back_offset);
+        }
+        return *this;
+    }
+
 private:
     enum class Mode {
         // The instance is empty.

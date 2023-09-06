@@ -1019,13 +1019,13 @@ public:
      * @return the current instance
      */
     BasicString<Ch> &EnsureCapacity(const SizeType &capacity) {
-        if (mode_ == Mode::Null) {
-            if (capacity) {
+        if (mode_ == Mode::Null) { // if the current mode is null,
+            if (capacity) { // and the capacity is nonzero, then allocate memory for intended capacity.
                 SimpleAllocate(SmallLength(), capacity, nullptr);
             }
-        } else if (mode_ == Mode::Small) {
-            if (capacity >= kSmallCap) {
-                SizeType len(SmallLength());
+        } else if (mode_ == Mode::Small) { // if the current mode is small,
+            if (capacity >= kSmallCap) { // and the intended capacity is larger than stack can store,
+                SizeType len(SmallLength()); // change the mode to Allocate with intended capacity.
                 Ch old[kSmallCap];
                 ICharTrait<Ch>::Copy(old, small_, len);
                 if (Ch *pos = SimpleAllocate(len, capacity, nullptr)) {
@@ -1035,35 +1035,62 @@ public:
         } else {
             if (data_) {
                 SizeType old_len = last_ - first_;
-                if (capacity > end_ - first_) {
-                    if (*data_ && (**data_).Value() > 1) {
-                        (**data_).DecrementRef();
+                if (capacity > end_ - first_) { // if the capacity is smaller than intended capacity,
+                    if (*data_ && (**data_).Value() > 1) { // if the instance is sharing,
+                        (**data_).DecrementRef(); // then detach and allocate (temporarily) independent data.
                         Ch *old = first_;
                         if (Ch *pos = SimpleAllocate(old_len, capacity, nullptr)) {
                             ICharTrait<Ch>::Copy(pos, old, old_len);
                         }
-                    } else {
-                        Ch *old = first_;
+                    } else { // otherwise, enlarge it by simply call realloc
+                        RefCount **old_data = data_;
+                        SizeType len = last_ - first_;
                         data_ = static_cast<RefCount **>(::realloc(data_, TotCap(capacity)));
-                        first_ = (Ch *) (data_ + 1);
-                        end_ = first_ + capacity;
-                        if (first_ != old) {
-                            last_ = first_ + old_len;
+                        if (old_data != data_) { // if the data moves, then reassign other member variables.
+                            first_ = (Ch *) (data_ + 1);
+                            last_ = first_ + len;
                         }
+                        end_ = first_ + capacity; // this must be done even we do not move the memory.
                     }
-                }
-            } else {
-                if (capacity) {
-                    SimpleAllocate(SmallLength(), capacity, nullptr);
                 }
             }
         }
         return *this;
     }
 
+    Ch &At(SizeType index) {
+        if (mode_ == Mode::Small) {
+            assert(index < kSmallLen);
+            return small_[index];
+        } else if (mode_ == Mode::Allocate) {
+            assert(data_);
+            SizeType len = last_ - first_;
+            assert(index < len);
+            if ((*data_) && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                Ch *old = first_;
+                if (Ch *pos = SimpleAllocate(len, nullptr)) {
+                    ICharTrait<Ch>::Copy(pos, old, len);
+                }
+            }
+            return first_ + index;
+        }
+        assert(false);
+    }
+
+    const Ch &ConstAt(SizeType index) {
+        if (mode_ == small_) {
+            assert(index < SmallLength());
+            return small_[index];
+        } else if (mode_ == Mode::Allocate) {
+            assert(data_ && index < last_ - first_);
+            return first_ + index;
+        }
+        assert(false);
+    }
+
     /**
-     *
-     * @return
+     * @return the address of contiguous memory of the string, mutable
      */
     Ch *Data() {
         if (mode_ == Mode::Null) {
@@ -1084,6 +1111,9 @@ public:
         return nullptr;
     }
 
+    /**
+     * @return the address of contiguous memory of the string, not mutable
+     */
     const Ch *ConstData() const noexcept {
         if (mode_ == Mode::Null) {
             return nullptr;

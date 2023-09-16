@@ -1196,6 +1196,77 @@ public:
         return *this;
     }
 
+    /**
+     * Extends the string by putting additional \p count consecutive copies of character \p ch at the end of the instance.
+     * Remains \p front_offset before the first \p ch and \p back_offset after the last \p ch.
+     * @param ch additional character
+     * @param count number of copies
+     * @param front_offset the amount of space remained before the \p str.
+     * @param back_offset the amount of space remained after the \p str.
+     * @return the current instance
+     */
+    BasicString<Ch> &Prepend(const Ch &ch, SizeType count = 1, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (ch && count) {
+            if (Ch *pos = GrowthPrepend(front_offset + count + back_offset) + front_offset) {
+                ICharTrait<Ch>::Fill(pos, ch, count);
+            }
+        }
+        return *this;
+    }
+
+    /**
+     * Extends the string by putting the c-style null-terminated string \p str at the end of the instance.
+     * Remains \p front_offset before the first character and \p back_offset after the last character.
+     * @param str the additional c-style null-terminated string
+     * @param front_offset the amount of space remained before the \p str.
+     * @param back_offset the amount of space remained after the \p str.
+     * @return the current instance
+     */
+    BasicString<Ch> &Prepend(const Ch *str, SizeType front_offset = 0, SizeType back_offset = 0) {
+        return BasicString<Ch>::Prepend(str, ICharTrait<Ch>::Length(str), front_offset, back_offset);
+    }
+
+    /**
+     * Extends the string by putting first \p len characters of \p str at the end of the instance.
+     * Remains \p front_offset before the first character and \p back_offset after the last character.
+     * @param str the additional array of characters
+     * @param len the amount of characters to be added
+     * @param front_offset the amount of space remained before the \p str.
+     * @param back_offset the amount of space remained after the \p str.
+     * @return the current instance
+     */
+    BasicString<Ch> &Prepend(const Ch *str, SizeType len, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (str && len) {
+            if (Ch *pos = GrowthPrepend(front_offset + len + back_offset) + front_offset) {
+                ICharTrait<Ch>::Copy(pos, str, len);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Prepend(const BasicString<Ch> &other, SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (data_ || front_offset || back_offset) {
+            if (other.mode_ == Mode::Small) {
+                return Prepend(other.small_, other.SmallLength(), front_offset, back_offset);
+            } else if (other.mode_ == Mode::Allocate) {
+                return Prepend(other.first_, other.last_ - first_, front_offset, back_offset);
+            }
+        } else {
+            new(this)BasicString<Ch>(other);
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Prepend(const BasicString<Ch> &other, SizeType offset, SizeType len,
+                            SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (other.mode_ == Mode::Small) {
+            return Prepend(other.small_ + offset, len, front_offset, back_offset);
+        } else if (other.mode_ == Mode::Allocate) {
+            return Prepend(other.first_ + offset, len, front_offset, back_offset);
+        }
+        return *this;
+    }
+
 private:
     enum class Mode {
         // The instance is empty.
@@ -1324,7 +1395,7 @@ private:
                     }
                     return pos + old_len;
                 } else {
-                    if (new_len > end_ - first_) {
+                    if (new_len >= end_ - first_) {
                         SizeType new_cap(Cap(new_len));
                         RefCount **old_data = data_;
                         RefCount *old_ref = *data_;
@@ -1342,6 +1413,63 @@ private:
             } else {
                 return SimpleAllocate(count, nullptr);
             }
+        }
+    }
+
+    Ch *GrowthPrepend(const SizeType &count) {
+        if (mode_ == Mode::Null) {
+            return SimpleAllocate(count, nullptr);
+        } else if (mode_ == Mode::Small) {
+            SizeType old_len(SmallLength()), new_len(old_len + count);
+            if (new_len > kSmallLen) {
+                Ch old[kSmallCap];
+                ICharTrait<Ch>::Copy(old, small_, old_len);
+                Ch *pos = SimpleAllocate(new_len, nullptr);
+                if (pos) {
+                    ICharTrait<Ch>::Copy(pos + count, old, old_len);
+                }
+                return pos;
+            } else {
+                SetSmallLength(new_len, true);
+                ICharTrait<Ch>::Move(small_ + count, small_, old_len);
+                return small_;
+            }
+        } else {
+            SizeType old_len(last_ - first_), new_len(old_len + count);
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                Ch *old_str(first_), *new_str(SimpleAllocate(new_len, nullptr));
+                if (new_str) {
+                    ICharTrait<Ch>::Copy(new_str + count, old_str, old_len);
+                }
+            } else {
+                SizeType old_cap(end_ - first_);
+                if (new_len < old_cap) {
+                    last_ += count;
+                    ICharTrait<Ch>::Move(first_ + count, first_, old_len);
+                } else {
+                    SizeType new_cap(Cap(new_len));
+                    if (new_cap - old_cap > old_cap * 2) {
+                        RefCount **old_data = data_;
+                        RefCount *old_ref = *data_;
+                        Ch *old_str = first_;
+                        Ch *new_str(SimpleAllocate(new_len, old_ref));
+                        ICharTrait<Ch>::Copy(new_str + count, old_str, old_len);
+                        ::free((void *) data_);
+                    } else {
+                        RefCount **old_data = data_;
+                        RefCount *old_ref = *data_;
+                        data_ = static_cast<RefCount **>(::realloc(data_, TotCap(new_cap)));
+                        if (data_ != old_data) {
+                            first_ = (Ch *) (data_ + 1);
+                        }
+                        last_ = first_ + new_len;
+                        end_ = first_ + new_cap;
+                        ICharTrait<Ch>::Move(first_ + count, first_, old_len);
+                    }
+                }
+            }
+            return first_;
         }
     }
 };

@@ -860,10 +860,6 @@ struct ICharTrait<wchar_t> {
     }
 };
 
-/**
- *
- * @tparam Ch
- */
 template<typename Ch>
 class BasicString {
 public:
@@ -1125,6 +1121,26 @@ public:
         return nullptr;
     }
 
+    int CompareTo(const Ch *other) const noexcept {
+        return ICharTrait<Ch>::Compare(ConstData(), other);
+    }
+
+    int CompareTo(const BasicString<Ch> &other) const noexcept {
+        return ICharTrait<Ch>::Compare(ConstData(), other.ConstData());
+    }
+
+    int CompareToNoCase(const Ch *other) const noexcept {
+        return ICharTrait<Ch>::CompareNoCase(ConstData(), other);
+    }
+
+    int CompareToNoCase(const BasicString<Ch> &other) const noexcept {
+        return ICharTrait<Ch>::CompareNoCase(ConstData(), other.ConstData());
+    }
+
+    SizeType IndexOf(const Ch &ch, SizeType occurrence) {
+
+    }
+
     /**
      * Extends the string by putting additional \p count consecutive copies of character \p ch at the end of the instance.
      * Remains \p front_offset before the first \p ch and \p back_offset after the last \p ch.
@@ -1348,7 +1364,7 @@ public:
         if (mode_ == Mode::Small) {
             SizeType old_len(SmallLength()), new_len(old_len - count);
             ICharTrait<Ch>::Move(small_ + index + count, small_ + index, old_len - index - count);
-            SetSmallLength(new_len,true);
+            SetSmallLength(new_len, true);
         } else if (mode_ == Mode::Allocate) {
             if (data_) {
                 if (*data_ && (**data_).Value() > 1) {

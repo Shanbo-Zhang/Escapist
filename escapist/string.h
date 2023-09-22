@@ -1137,8 +1137,105 @@ public:
         return ICharTrait<Ch>::CompareNoCase(ConstData(), other.ConstData());
     }
 
-    SizeType IndexOf(const Ch &ch, SizeType occurrence) {
+    SizeType IndexOf(const Ch &ch) {
+        const Ch *str(ConstData());
+        if (const Ch *pos = ICharTrait<Ch>::Find(str, ch)) {
+            return pos - str;
+        }
+        return -1;
+    }
 
+    SizeType IndexOf(const Ch &ch, SizeType occurrence) {
+        const Ch *str(ConstData()), *curr(ICharTrait<Ch>::Find(str, ch)), *prev(nullptr);
+        if (str) {
+            for (; occurrence && curr; --occurrence) {
+                prev = curr;
+                curr = ICharTrait<Ch>::Find(prev + 1, ch);
+            }
+        }
+        return occurrence ? -1 : prev - str;
+    }
+
+    SizeType IndexOf(const Ch &ch, SizeType offset, SizeType occurrence) {
+        SizeType len(Length());
+        const Ch *str(ConstData());
+        if (!str || offset >= len) {
+            return -1;
+        }
+        str += offset;
+        const Ch *curr(ICharTrait<Ch>::Find(str, ch)), *prev(nullptr);
+        for (; occurrence && curr; --occurrence) {
+            prev = curr;
+            curr = ICharTrait<Ch>::Find(prev + 1, ch);
+        }
+        return occurrence ? -1 : prev - str + offset;
+    }
+
+    SizeType IndexOf(const Ch *&sub) {
+        const Ch *str(ConstData());
+        if (const Ch *pos = ICharTrait<Ch>::Find(str, sub)) {
+            return pos - str;
+        }
+        return -1;
+    }
+
+    SizeType IndexOf(const Ch *sub, SizeType occurrence) {
+        SizeType sub_len(ICharTrait<Ch>::Length(sub));
+        const Ch *str(ConstData()), *curr(ICharTrait<Ch>::Find(str, sub)), *prev(nullptr);
+        if (str && sub_len && sub) {
+            for (; occurrence && curr; --occurrence) {
+                prev = curr;
+                curr = ICharTrait<Ch>::Find(prev + sub_len, sub);
+            }
+        }
+        return occurrence ? -1 : prev - str;
+    }
+
+    SizeType IndexOf(const Ch *sub, SizeType offset, SizeType occurrence) {
+        SizeType len(Length()), sub_len(ICharTrait<Ch>::Length(sub));
+        const Ch *str(ConstData());
+        if (!str || !sub_len || offset >= len - sub_len) {
+            return -1;
+        }
+        str += offset;
+        const Ch *curr(ICharTrait<Ch>::Find(str, sub)), *prev(nullptr);
+        for (; occurrence && curr; --occurrence) {
+            prev = curr;
+            curr = ICharTrait<Ch>::Find(prev + sub_len, str);
+        }
+        return occurrence ? -1 : prev - str + offset;
+    }
+
+    SizeType IndexOf(const BasicString<Ch> &other) {
+        return IndexOf(other.ConstData());
+    }
+
+    SizeType IndexOf(const BasicString<Ch> &other, SizeType occurrence) {
+        return IndexOf(other.ConstData(), occurrence);
+    }
+
+    SizeType IndexOf(const BasicString<Ch> &other, SizeType offset, SizeType occurrence) {
+        return IndexOf(other.ConstData(), offset, occurrence);
+    }
+
+    SizeType LastIndexOf(const Ch &ch) {
+        const Ch *str(ConstData());
+        if (const Ch *pos = ICharTrait<Ch>::ReverseFind(str, ch)) {
+            return pos - str;
+        }
+        return -1;
+    }
+
+    SizeType LastIndexOf(const Ch *&sub) {
+        const Ch *str(ConstData());
+        if (const Ch *pos = ICharTrait<Ch>::ReverseFind(str, sub)) {
+            return pos - str;
+        }
+        return -1;
+    }
+
+    SizeType LastIndexOf(const BasicString<Ch> &other) {
+        return LastIndexOf(other.ConstData());
     }
 
     /**

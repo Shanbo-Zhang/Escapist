@@ -1616,6 +1616,7 @@ private:
                         data_ = static_cast<RefCount **>(::realloc(data_, TotCap(new_cap)));
                         if (data_ != old_data) {
                             first_ = (Ch *) (data_ + 1);
+                            *data_ = old_ref;
                         }
                         last_ = first_ + new_len;
                         end_ = first_ + new_cap;
@@ -1742,6 +1743,42 @@ private:
                 }
             }
             return first_ + index;
+        }
+    }
+
+    Ch *AssignImpl(SizeType new_len) {
+        if (mode_ == Mode::Null) {
+            return SimpleAllocate(new_len, nullptr);
+        } else if (mode_ == Mode::Small) {
+            SizeType old_len(SmallLength());
+            if (new_len < kSmallLen) {
+                SetSmallLength(new_len);
+                return small_;
+            } else {
+                return SimpleAllocate(new_len, nullptr);
+            }
+        } else {
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+                return SimpleAllocate(new_len, nullptr);
+            } else {
+                SizeType old_cap(end_ - first_);
+                if (new_len < old_cap) {
+                    last_ = first_ + new_len;
+                } else {
+                    SizeType new_cap(Cap(new_len));
+                    RefCount **old_data = data_;
+                    RefCount *old_ref = *data_;
+                    data_ = static_cast<RefCount **>(::realloc(data_, TotCap(new_cap)));
+                    if (data_ != old_data) {
+                        first_ = (Ch *) (data_ + 1);
+                        *data_ = old_ref;
+                    }
+                    last_ = first_ + new_len;
+                    end_ = first_ + new_cap;
+                }
+                return first_;
+            }
         }
     }
 };

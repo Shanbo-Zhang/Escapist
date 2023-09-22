@@ -1238,6 +1238,8 @@ public:
         return LastIndexOf(other.ConstData());
     }
 
+    // TODO: Assign & operator~
+
     /**
      * Extends the string by putting additional \p count consecutive copies of character \p ch at the end of the instance.
      * Remains \p front_offset before the first \p ch and \p back_offset after the last \p ch.

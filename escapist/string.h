@@ -1238,7 +1238,38 @@ public:
         return LastIndexOf(other.ConstData());
     }
 
-    // TODO: Assign & operator~
+    BasicString<Ch> &Assign(const Ch *str) {
+        return Assign(str, ICharTrait<Ch>::Length(str), 0, 0);
+    }
+
+    BasicString<Ch> &Assign(const Ch *str, SizeType len,
+                            SizeType front_offset = 0, SizeType back_offset = 0) {
+        if (str && len) {
+            if (Ch *pos = AssignImpl(front_offset + len + back_offset) + front_offset) {
+                ICharTrait<Ch>::Copy(pos, str, len);
+            }
+        }
+        return *this;
+    }
+
+    BasicString<Ch> &Assign(const BasicString<Ch> &other) {
+        if (mode_ == Mode::Allocate) {
+            if (*data_ && (**data_).Value() > 1) {
+                (**data_).DecrementRef();
+            } else {
+                delete *data_;
+                ::free(data_);
+            }
+        }
+        new(this)BasicString<Ch>(other);
+        return *this;
+    }
+
+    BasicString<Ch> &Assign(const BasicString<Ch> &other, SizeType offset, SizeType len,
+                            SizeType front_offset = 0, SizeType back_offset = 0) {
+
+        return *this;
+    }
 
     /**
      * Extends the string by putting additional \p count consecutive copies of character \p ch at the end of the instance.

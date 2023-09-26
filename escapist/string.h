@@ -1171,7 +1171,7 @@ public:
         return occurrence ? -1 : prev - str + offset;
     }
 
-    SizeType IndexOf(const Ch *&sub) {
+    SizeType IndexOf(const Ch *sub) {
         const Ch *str(ConstData());
         if (const Ch *pos = ICharTrait<Ch>::Find(str, sub)) {
             return pos - str;
@@ -1267,7 +1267,15 @@ public:
 
     BasicString<Ch> &Assign(const BasicString<Ch> &other, SizeType offset, SizeType len,
                             SizeType front_offset = 0, SizeType back_offset = 0) {
-
+        SizeType total(other.Length());
+        if (offset + len > total) {
+            len = total - offset;
+        }
+        if (other.mode_ != Mode::Null && total) {
+            if (Ch *pos = AssignImpl(front_offset + len + back_offset) + front_offset) {
+                ICharTrait<Ch>::Copy(pos, other.ConstData() + offset, len);
+            }
+        }
         return *this;
     }
 
@@ -1785,7 +1793,7 @@ private:
         } else if (mode_ == Mode::Small) {
             SizeType old_len(SmallLength());
             if (new_len < kSmallLen) {
-                SetSmallLength(new_len);
+                SetSmallLength(new_len, true);
                 return small_;
             } else {
                 return SimpleAllocate(new_len, nullptr);
@@ -1810,6 +1818,7 @@ private:
                     last_ = first_ + new_len;
                     end_ = first_ + new_cap;
                 }
+                *last_ = Ch(0);
                 return first_;
             }
         }

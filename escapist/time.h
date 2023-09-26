@@ -4,17 +4,96 @@
 #include "base.h"
 #include <ctime>
 
-enum class DayOfWeek : int {
-    kMonday,
-    kTuesday,
-    kWednesday,
-    kThursday,
-    kFriday,
-    kSaturday,
-    kSunday
+class Clock {
+public:
+    Clock() : hour_(0), minute_(0), second_(0) {}
+
+    Clock(int hour, int minute, int second) noexcept
+            : hour_(hour), minute_(minute), second_(second) {
+        assert(hour >= 0 && hour <= 23);
+        assert(minute >= 0 && minute <= 59);
+        assert(second >= 0 && second <= 59);
+    }
+
+    Clock(time_t stamp) noexcept
+            : second_(int(stamp % 60)), minute_(int((stamp /= 60) % 60)), hour_(int((stamp /= 60) % 24)) {}
+
+    Clock(const Clock &other) noexcept
+            : hour_(other.hour_), minute_(other.minute_), second_(other.second_) {}
+
+    int Hour() const noexcept {
+        return hour_;
+    }
+
+    int Minute() const noexcept {
+        return minute_;
+    }
+
+    int Second() const noexcept {
+        return second_;
+    }
+
+    Clock &SetHour(const int &value) {
+        assert(value >= 0 && value <= 23);
+        hour_ = value;
+        return *this;
+    }
+
+    Clock& SetMinute(const int& value){
+        assert(value >= 0 && value <= 59);
+        minute_=value;
+        return *this;
+    }
+
+    Clock& SetSecond(const int& value){
+        assert(value >= 0 && value <= 59);
+        second_=value;
+        return *this;
+    }
+
+private:
+    int hour_;
+    int minute_;
+    int second_;
 };
 
 class Calendar {
+public:
+    /**
+     * Creates an empty, invalid Calendar instance.
+     */
+    Calendar() : year_(0), month_(0), day_(0), hour_(0), minute_(0), second_(0) {}
+
+    /**
+     * Creates an Calendar instance from another instance
+     * @param other
+     */
+    Calendar(const Calendar &other)
+            : year_(other.year_), month_(other.month_), day_(other.day_),
+              hour_(other.hour_), minute_(other.minute_), second_(other.second_) {}
+
+    /**
+     * Creates a Calendar instance from the system timestamp.
+     * @param time
+     */
+    Calendar(const time_t &time) {
+
+    }
+
+    /**
+     * Creates a Calendar instance from a certain time
+     * @param year
+     * @param month
+     * @param day
+     * @param hour
+     * @param minute
+     * @param second
+     */
+    Calendar(const int &year, const int &month, const int &day,
+             const int &hour = 0, const int &minute = 0, const int &second = 0)
+            : year_(year), month_(month), day_(day), hour_(hour), minute_(minute), second_(second) {}
+
+
 private:
     int year_;
     int month_;
@@ -22,131 +101,6 @@ private:
     int hour_;
     int minute_;
     int second_;
-
-public:
-    Calendar() noexcept
-            : year_(-1), month_(-1), day_(-1), hour_(-1), minute_(-1), second_(-1) {}
-
-    Calendar(time_t time) noexcept {
-
-    }
-};
-
-class Date {
-public:
-    Date() : Date(-1, -1, -1) {}
-
-    Date(const int &year, const int &month, const int &day)
-            : year_(year), month_(month), day_(day) {}
-
-    Date(const Date &other) noexcept = default;
-
-    ~Date() noexcept = default;
-
-    bool IsValid() const noexcept {
-        return year_ > 0 && month_ > 0 && day_ > 0;
-    }
-
-    static constexpr bool IsLeapYear(const int &year) {
-        // return !(year % 400) || (!(year % 100) && (year % 4));
-        // By https://gist.github.com/dolmen/892083, he used contrapositive, to prevent frequent mod operations.
-        return !(year % 4 != 0 || (year % 100 == 0 && year % 400 != 0));
-    }
-
-    static int Compare(const int &left_year, const int &left_month, const int &left_day,
-                       const int &right_year, const int &right_month, const int &right_day) {
-        if (left_year == right_year) {
-            if (left_month == right_month) {
-                if (left_day == right_day) {
-                    return 0;
-                } else {
-                    return left_day < right_day ? -1 : 1;
-                }
-            } else {
-                return left_month < right_month ? -1 : 1;
-            }
-        } else {
-            return left_year < right_year ? -1 : 1;
-        }
-    }
-
-    int CompareTo(const int &year, const int &month, const int &day) const noexcept {
-        assert(Date::IsValid());
-        return Date::Compare(year_, month_, day_, year, month, day);
-    }
-
-    int CompareTo(const Date &other) const {
-        assert(other.IsValid());
-        return Date::CompareTo(other.year_, other.month_, other.day_);
-    }
-
-    bool IsBefore(const int &year, const int &month, const int &day) const {
-        return Date::CompareTo(year, month, day) == -1;
-    }
-
-    bool IsBefore(const Date &other) const {
-        return Date::CompareTo(other) == -1;
-    }
-
-    bool IsAfter(const int &year, const int &month, const int &day) const {
-        return Date::CompareTo(year, month, day) == 1;
-    }
-
-    bool IsAfter(const Date &other) const {
-        return Date::CompareTo(other) == 1;
-    }
-
-    bool Equals(const int &year, const int &month, const int &day) const {
-        return Date::CompareTo(year, month, day) == 0;
-    }
-
-    bool Equals(const Date &other) const {
-        return Date::CompareTo(other) == 0;
-    }
-
-    int Year() const noexcept {
-        return year_;
-    }
-
-    int Month() const noexcept {
-        return month_;
-    }
-
-    int Day() const noexcept {
-        return day_;
-    }
-
-    Date &SetYear(const int &value) {
-        year_ = value;
-        return *this;
-    }
-
-    Date &SetMonth(const int &value) {
-        month_ = value;
-        return *this;
-    }
-
-    Date &SetDay(const int &value) {
-        day_ = value;
-        return *this;
-    }
-
-    Date &AddDay(const int &change) {
-
-    }
-
-    Date &AddMonth(const int &change) {
-
-    }
-
-    Date &AddYear(const int &change) {
-
-    }
-
-private:
-    int year_;
-    int month_;
-    int day_;
 };
 
 #endif //ESCAPIST_TIME_H
